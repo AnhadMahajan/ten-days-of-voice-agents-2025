@@ -1,0 +1,35 @@
+[
+  {
+    "timestamp": "2025-11-23T23:07:25.755654",
+    "mood": "Feeling a little sick.",
+    "energy": "My energy level is zero right now.",
+    "stress": "And something stressing is my loneliness.",
+    "goals": [
+      "No one to talk to."
+    ],
+    "summary": "You said you're feeling Feeling a little sick. with energy described as My energy level is zero right now.. Your goals are: No one to talk to.. A simple idea: break a goal into one small step, and try a 5-minute break between tasks. Small steps win.",
+    "finished_at": "2025-11-23T23:08:39.897460"
+  },
+  {
+    "timestamp": "2025-11-23T23:22:40.734985",
+    "mood": "A bit fine.",
+    "energy": "More than a question. Energy level is five.",
+    "stress": "My stress level is six right now. Okay.",
+    "goals": [
+      "They walk."
+    ],
+    "summary": "You're feeling A bit fine. with More than a question. Energy level is five. energy and mentioned some stress around My stress level is six right now. Okay.. Your focus today: They walk.. When stressed, try breaking tasks into 5-minute chunks.",
+    "finished_at": "2025-11-23T23:24:32.915700"
+  },
+  {
+    "timestamp": "2025-11-24T00:08:25.119147",
+    "mood": "I'm feeling a little bit anxious.",
+    "energy": "Energy level is low, and stress is okay right now.",
+    "stress": "Wanna complete my study?",
+    "goals": [
+      "I wanna revise deep learning tomorrow."
+    ],
+    "summary": "You're feeling I'm feeling a little bit anxious. with Energy level is low, and stress is okay right now. energy and mentioned some stress around Wanna complete my study?. Your focus today: I wanna revise deep learning tomorrow.. Since energy is low, maybe pick just one goal to focus on.",
+    "finished_at": "2025-11-24T00:09:43.479779"
+  }
+]

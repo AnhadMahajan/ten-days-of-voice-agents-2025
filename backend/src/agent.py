@@ -3,6 +3,7 @@ import logging
 import json
 import os
 import time
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 from livekit.agents import (
@@ -27,27 +28,30 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 
-class Assistant(Agent):
+class WellnessAssistant(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-You are BrewBuddy, a friendly barista for BrewVerse Coffee. The user places voice orders.
-Ask short clarifying questions until you have collected:
-drinkType, size, milk, extras (list), and name.
-Use plain, concise sentences. Confirm the order when complete.
+You are CalmCompanion, a friendly, grounded health & wellness voice companion.
+Your role is to check in briefly each day with the user about mood, energy, stress,
+and 1–3 simple objectives. Keep questions short and supportive. Offer small, actionable,
+non-medical suggestions (e.g., "try a 5-minute walk", "break the task into one small step").
+Do not diagnose or give medical advice. Be warm but concise. Listen actively and validate
+their feelings without being preachy. Persist each check-in to a JSON log and
+refer to previous entries briefly when the user returns to show continuity.
 """
         )
 
 
 def prewarm(proc: JobProcess):
+    # Preload voice activity detection model once per process
     proc.userdata["vad"] = silero.VAD.load()
 
 
 async def entrypoint(ctx: JobContext):
-    ctx.log_context_fields = {
-        "room": ctx.room.name,
-    }
+    ctx.log_context_fields = {"room": ctx.room.name}
 
+    # Configure an agent session using the same plugin stack as the starter template.
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
@@ -75,100 +79,206 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    def init_order_state(s):
-        order = {
-            "drinkType": None,
-            "size": None,
-            "milk": None,
-            "extras": [],  # list of strings
-            "name": None,
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        setattr(s, "order_state", order)
-        setattr(s, "order_step", 0)
-        return order
+    # determine a reliable path for the JSON file next to this agent file
+    BASE_DIR = os.path.dirname(__file__)
+    DATA_DIR = os.path.join(BASE_DIR, "data")
+    LOG_FILE = os.path.join(DATA_DIR, "wellness_log.json")
 
-    async def save_order_to_json(order):
-        os.makedirs("orders", exist_ok=True)
-        safe_name = order.get("name") or "anonymous"
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"orders/order_{timestamp}_{safe_name.replace(' ', '_')}.json"
+    def ensure_data_dir():
+        os.makedirs(DATA_DIR, exist_ok=True)
+        if not os.path.exists(LOG_FILE):
+            with open(LOG_FILE, "w", encoding="utf-8") as fh:
+                json.dump([], fh, indent=2)
+
+    def load_log():
+        ensure_data_dir()
         try:
-            with open(filename, "w", encoding="utf-8") as fh:
-                json.dump(order, fh, indent=4, ensure_ascii=False)
-            logger.info(f"Saved order to {filename}")
-            return filename
+            with open(LOG_FILE, "r", encoding="utf-8") as fh:
+                return json.load(fh)
         except Exception:
-            logger.exception("Failed to save order JSON")
-            return None
+            logger.exception("Failed to read wellness log")
+            return []
 
-    async def process_order_turn(s, transcript: str):
-        order = getattr(s, "order_state", None)
-        step = getattr(s, "order_step", 0)
-        if order is None:
-            order = init_order_state(s)
+    def save_entry(entry: dict):
+        ensure_data_dir()
+        try:
+            log = load_log()
+            log.append(entry)
+            with open(LOG_FILE, "w", encoding="utf-8") as fh:
+                json.dump(log, fh, indent=2, ensure_ascii=False)
+            logger.info(f"Saved wellness entry at {entry.get('timestamp')}")
+            return True
+        except Exception:
+            logger.exception("Failed to save wellness entry")
+            return False
+
+    def get_recent_context(past_entries, limit=3):
+        """Extract insights from recent check-ins for more personalized greetings."""
+        if not past_entries:
+            return None
+        
+        recent = past_entries[-limit:]
+        
+        # Analyze patterns
+        moods = [e.get("mood", "").lower() for e in recent if e.get("mood")]
+        energies = [e.get("energy", "").lower() for e in recent if e.get("energy")]
+        
+        context = {
+            "last_entry": recent[-1],
+            "recent_moods": moods,
+            "recent_energies": energies,
+            "total_checkins": len(past_entries)
+        }
+        
+        return context
+
+    def init_wellness_state(s):
+        # Create a fresh in-memory session state
+        state = {
+            "timestamp": datetime.now().isoformat(),
+            "mood": None,
+            "energy": None,
+            "stress": None,
+            "goals": [],
+            "summary": None,
+            "finished_at": None,
+        }
+        setattr(s, "wellness_state", state)
+        setattr(s, "wellness_step", 0)
+        return state
+
+    async def process_wellness_turn(s, transcript: str):
+        """
+        A simple step-driven handler that collects:
+          - mood (text)
+          - energy (text or scale)
+          - stress (text)
+          - goals (comma-separated or short list)
+        Then produces a short grounding suggestion and a recap, saves to JSON.
+        """
+        state = getattr(s, "wellness_state", None)
+        step = getattr(s, "wellness_step", 0)
+        if state is None:
+            state = init_wellness_state(s)
             step = 0
 
-        text = transcript.strip()
+        text = (transcript or "").strip()
         text_l = text.lower()
 
-        def is_none_answer(t):
-            return t.strip().lower() in ("no", "none", "nope", "nothing", "n")
+        def none_answer(t):
+            return t.strip().lower() in ("no", "none", "not really", "nah", "nope", "n", "nothing")
 
+        # Step 0: capture mood
         if step == 0:
-            order["drinkType"] = text
-            setattr(s, "order_step", 1)
-            return "Great. What size would you like? small, medium, or large"
+            state["mood"] = text
+            setattr(s, "wellness_step", 1)
+            return "Thanks for sharing. What's your energy level today — would you say high, medium, or low?"
 
+        # Step 1: capture energy
         if step == 1:
-            if "small" in text_l:
-                order["size"] = "small"
-            elif "large" in text_l:
-                order["size"] = "large"
-            elif "medium" in text_l:
-                order["size"] = "medium"
-            else:
-                order["size"] = text
-            setattr(s, "order_step", 2)
-            return "Okay. Which milk would you prefer? (dairy, oat, almond, soy, skim)"
+            state["energy"] = text
+            setattr(s, "wellness_step", 2)
+            return "Got it. Is anything stressing you out right now? It's okay to say no if things feel manageable."
 
+        # Step 2: capture stress
         if step == 2:
-            order["milk"] = text
-            setattr(s, "order_step", 3)
-            return "Any extras? For example, whipped cream, caramel, extra shot. Say 'no' if none."
-
-        if step == 3:
-            if is_none_answer(text):
-                order["extras"] = []
+            if none_answer(text):
+                state["stress"] = "none"
             else:
-                parts = [p.strip() for p in text.replace(" and ", ",").split(",") if p.strip()]
-                order["extras"] = parts
-            setattr(s, "order_step", 4)
-            return "Perfect. Can I get the name for the order please?"
+                state["stress"] = text
+            setattr(s, "wellness_step", 3)
+            return "Okay, I hear you. What are one to three things you'd like to accomplish today?"
 
+        # Step 3: capture goals and provide recap
+        if step == 3:
+            # Convert to list by splitting commas or "and"
+            parts = [p.strip() for p in text.replace(" and ", ",").split(",") if p.strip()]
+            if not parts:
+                # If user gives an empty answer, prompt gently
+                await session.say(
+                    "That's alright. Is there even one small thing you'd like to focus on today?",
+                    allow_interruptions=True,
+                )
+                setattr(s, "wellness_step", 3)
+                return None  # Wait for next transcription
+            
+            state["goals"] = parts[:3]  # limit to 3
+            
+            # Generate contextual summary based on their responses
+            mood_part = f"You're feeling {state['mood']}"
+            energy_part = f"with {state['energy']} energy"
+            
+            if state["stress"] != "none":
+                stress_part = f"and mentioned some stress around {state['stress']}"
+            else:
+                stress_part = "and things feel manageable stress-wise"
+            
+            goals_part = f"Your focus today: {', '.join(state['goals'])}"
+            
+            # Offer personalized, actionable suggestion based on their state
+            suggestion = generate_suggestion(state)
+            
+            recap = f"{mood_part} {energy_part} {stress_part}. {goals_part}. {suggestion}"
+            
+            state["summary"] = recap
+            state["finished_at"] = datetime.now().isoformat()
+            saved = save_entry(state)
+            setattr(s, "wellness_step", 4)
+            
+            confirmation = " Does this sound about right?"
+            return recap + confirmation
+
+        # Step 4: confirmation after recap
         if step == 4:
-            order["name"] = text
-            setattr(s, "order_step", 5)
-            order["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            saved = await save_order_to_json(order)
-            extras_display = ", ".join(order["extras"]) if order["extras"] else "no extras"
-            summary = (
-                f"Thanks {order['name']}. I have a {order['size']} {order['drinkType']} "
-                f"with {order['milk']} milk and {extras_display}. "
-                "Your order has been saved and will be ready shortly."
-            )
-            if saved:
-                summary += f" (saved to {saved})"
-            return summary
+            # User has confirmed or responded to recap
+            setattr(s, "wellness_step", 5)
+            return "Great. I've saved this check-in. Remember, small steps add up. Feel free to come back anytime."
 
-        return "Your order is already complete. If you want to place another order, say 'new order'."
+        # Step 5: already finished
+        if step >= 5:
+            return "We've completed today's check-in. If you'd like to start a new one, just say 'new check-in'."
 
+        return "I didn't quite catch that. Could you say it again briefly?"
 
+    def generate_suggestion(state):
+        """Generate a personalized suggestion based on the user's current state."""
+        energy = state.get("energy", "").lower()
+        stress = state.get("stress", "none").lower()
+        num_goals = len(state.get("goals", []))
+        
+        suggestions = []
+        
+        # Energy-based suggestions
+        if "low" in energy or "tired" in energy:
+            suggestions.append("Since energy is low, maybe pick just one goal to focus on")
+        elif "high" in energy:
+            suggestions.append("Great energy today — ride that momentum")
+        
+        # Stress-based suggestions
+        if stress != "none" and stress != "":
+            suggestions.append("When stressed, try breaking tasks into 5-minute chunks")
+            suggestions.append("Consider a quick walk or breathing break between tasks")
+        
+        # Goal-based suggestions
+        if num_goals > 2:
+            suggestions.append("You've got several things on your plate — tackle them one at a time")
+        
+        # Default suggestions
+        default_suggestions = [
+            "Try starting with the easiest task to build momentum",
+            "Remember to take short breaks — even 5 minutes helps",
+            "One small step forward is still progress",
+        ]
+        
+        if suggestions:
+            return suggestions[0] + "."
+        else:
+            return default_suggestions[0] + "."
 
     async def handle_transcription(event: UserInputTranscribedEvent):
         """
-        Async transcription handler that contains the original logic.
-        This is scheduled from the synchronous wrapper below.
+        The transcription handler schedules the step-driven process and handles
+        'new check-in' command to reset state.
         """
         if not getattr(event, "is_final", True):
             return
@@ -179,19 +289,40 @@ async def entrypoint(ctx: JobContext):
 
         logger.info(f"User said: {user_text}")
 
-        if user_text.lower() in ("new order", "start over", "restart"):
-            init_order_state(session)
-            await session.say("Sure. What would you like to order today?", allow_interruptions=True)
+        # Commands to restart the check-in
+        restart_commands = ["new check-in", "new checkin", "new check", "start over", "restart", "check in"]
+        if user_text.lower() in restart_commands:
+            init_wellness_state(session)
+            await session.say("Sure, let's start fresh. How are you feeling right now?", allow_interruptions=True)
             return
 
-        if not hasattr(session, "order_state"):
-            init_order_state(session)
-            reply = await process_order_turn(session, user_text)
+        # Handle view history command
+        if "history" in user_text.lower() or "past check" in user_text.lower():
+            past = load_log()
+            if len(past) > 1:
+                recent = past[-3:-1]  # Last 2-3 entries before current
+                summary = f"You've done {len(past)} check-ins. "
+                if recent:
+                    summary += f"Recently, you've been feeling {recent[-1].get('mood', 'varied')}. "
+                await session.say(summary, allow_interruptions=True)
+            else:
+                await session.say("This is your first check-in with me.", allow_interruptions=True)
+            return
+
+        # If no wellness_state, initialize and start the flow
+        if not hasattr(session, "wellness_state") or getattr(session, "wellness_state") is None:
+            init_wellness_state(session)
+            # process the user's first utterance as mood
+            reply = await process_wellness_turn(session, user_text)
+            if reply:
+                await session.say(reply, allow_interruptions=True)
+            return
+
+        # Otherwise continue the step flow
+        reply = await process_wellness_turn(session, user_text)
+        # process_wellness_turn may return None if it asked a clarifying question and expects next input
+        if reply:
             await session.say(reply, allow_interruptions=True)
-            return
-
-        reply = await process_order_turn(session, user_text)
-        await session.say(reply, allow_interruptions=True)
 
     @session.on("user_input_transcribed")
     def on_user_input_transcribed(event: UserInputTranscribedEvent):
@@ -208,18 +339,35 @@ async def entrypoint(ctx: JobContext):
             else:
                 asyncio.run(handle_transcription(event))
 
+    # Start the session with the wellness assistant
     await session.start(
-        agent=Assistant(),
+        agent=WellnessAssistant(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
+    # Initialize state and greet the user with context from previous check-ins
+    init_wellness_state(session)
+    past = load_log()
+    context = get_recent_context(past)
+    
+    if context and context["last_entry"]:
+        last = context["last_entry"]
+        last_time = last.get("timestamp", "")
+        
+        # More natural greeting with temporal context
+        greet = (
+            f"Welcome back! Last time you were feeling {last.get('mood', 'uncertain')} "
+            f"with {last.get('energy', 'moderate')} energy. How's today comparing?"
+        )
+    else:
+        greet = "Hi, I'm CalmCompanion. Let's do a quick check-in. How are you feeling today?"
 
-    init_order_state(session)
-    await session.say("Welcome to BrewVerse. What would you like to order today?", allow_interruptions=True)
+    await session.say(greet, allow_interruptions=True)
 
+    # connect to signalling (blocks until shutdown)
     await ctx.connect()
 
 
