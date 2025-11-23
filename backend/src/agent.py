@@ -1,6 +1,11 @@
+# agent.py
+import asyncio
 import logging
-
+import json
+import os
+import time
 from dotenv import load_dotenv
+
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -12,11 +17,12 @@ from livekit.agents import (
     cli,
     metrics,
     tokenize,
-    # function_tool,
-    # RunContext
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+# Import event type here (used in handler signature)
+from livekit.agents import UserInputTranscribedEvent
 
 logger = logging.getLogger("agent")
 
@@ -26,28 +32,13 @@ load_dotenv(".env.local")
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
+            instructions="""
+You are BrewBuddy, a friendly barista for BrewVerse Coffee. The user places voice orders.
+Ask short clarifying questions until you have collected:
+drinkType, size, milk, extras (list), and name.
+Use plain, concise sentences. Confirm the order when complete.
+"""
         )
-
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
 
 
 def prewarm(proc: JobProcess):
@@ -55,51 +46,26 @@ def prewarm(proc: JobProcess):
 
 
 async def entrypoint(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
+    # Build the voice pipeline
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=deepgram.STT(model="nova-3"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=google.LLM(
-                model="gemini-2.5-flash",
-            ),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
+        llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-                voice="en-US-matthew", 
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
+            voice="en-US-matthew",
+            style="Conversation",
+            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+            text_pacing=True,
+        ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
-
-    # Metrics collection, to measure pipeline performance
-    # For more information, see https://docs.livekit.io/agents/build/metrics/
+    # Metrics collection
     usage_collector = metrics.UsageCollector()
 
     @session.on("metrics_collected")
@@ -113,25 +79,185 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
+    # Helper: initialize per-session order state
+    def init_order_state(s):
+        order = {
+            "drinkType": None,
+            "size": None,
+            "milk": None,
+            "extras": [],  # list of strings
+            "name": None,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        setattr(s, "order_state", order)
+        # Also keep a small 'step' pointer for flow control (0..4)
+        setattr(s, "order_step", 0)
+        return order
 
-    # Start the session, which initializes the voice pipeline and warms up the models
+    # Helper: persist order to JSON file
+    async def save_order_to_json(order):
+        os.makedirs("orders", exist_ok=True)
+        # safe filename: include timestamp and name if present
+        safe_name = order.get("name") or "anonymous"
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"orders/order_{timestamp}_{safe_name.replace(' ', '_')}.json"
+        try:
+            with open(filename, "w", encoding="utf-8") as fh:
+                json.dump(order, fh, indent=4, ensure_ascii=False)
+            logger.info(f"Saved order to {filename}")
+            return filename
+        except Exception:
+            logger.exception("Failed to save order JSON")
+            return None
+
+    # Core order processing. Returns a text reply to speak back to the user.
+    async def process_order_turn(s, transcript: str):
+        # ensure order state present
+        order = getattr(s, "order_state", None)
+        step = getattr(s, "order_step", 0)
+        if order is None:
+            order = init_order_state(s)
+            step = 0
+
+        text = transcript.strip()
+        text_l = text.lower()
+
+        # Helper to interpret "no" or "none"
+        def is_none_answer(t):
+            return t.strip().lower() in ("no", "none", "nope", "nothing", "n")
+
+        # Step flow:
+        # 0 - drinkType
+        # 1 - size
+        # 2 - milk
+        # 3 - extras
+        # 4 - name -> finish
+        if step == 0:
+            # If user said something like "I'd like a latte" then capture drinkType
+            order["drinkType"] = text
+            setattr(s, "order_step", 1)
+            return "Great. What size would you like? small, medium, or large"
+
+        if step == 1:
+            # normalize size
+            if "small" in text_l:
+                order["size"] = "small"
+            elif "large" in text_l:
+                order["size"] = "large"
+            elif "medium" in text_l:
+                order["size"] = "medium"
+            else:
+                # If unclear, accept the text as-is (user may say "regular")
+                order["size"] = text
+            setattr(s, "order_step", 2)
+            return "Okay. Which milk would you prefer? (dairy, oat, almond, soy, skim)"
+
+        if step == 2:
+            order["milk"] = text
+            setattr(s, "order_step", 3)
+            return "Any extras? For example, whipped cream, caramel, extra shot. Say 'no' if none."
+
+        if step == 3:
+            if is_none_answer(text):
+                order["extras"] = []
+            else:
+                # split by commas or 'and'
+                parts = [p.strip() for p in text.replace(" and ", ",").split(",") if p.strip()]
+                order["extras"] = parts
+            setattr(s, "order_step", 4)
+            return "Perfect. Can I get the name for the order please?"
+
+        if step == 4:
+            order["name"] = text
+            # finished
+            setattr(s, "order_step", 5)
+            # store a finished_at time
+            order["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            # persist JSON
+            saved = await save_order_to_json(order)
+            # Build confirmation summary
+            extras_display = ", ".join(order["extras"]) if order["extras"] else "no extras"
+            summary = (
+                f"Thanks {order['name']}. I have a {order['size']} {order['drinkType']} "
+                f"with {order['milk']} milk and {extras_display}. "
+                "Your order has been saved and will be ready shortly."
+            )
+            if saved:
+                summary += f" (saved to {saved})"
+            return summary
+
+        # If step >=5 (already completed)
+        return "Your order is already complete. If you want to place another order, say 'new order'."
+
+    # --- IMPORTANT CHANGE: event handler must be synchronous ---
+    # We'll create an async handler and run it via asyncio.create_task from a sync wrapper.
+
+    async def handle_transcription(event: UserInputTranscribedEvent):
+        """
+        Async transcription handler that contains the original logic.
+        This is scheduled from the synchronous wrapper below.
+        """
+        # react only to final transcripts
+        if not getattr(event, "is_final", True):
+            return
+
+        user_text = getattr(event, "transcript", "").strip()
+        if not user_text:
+            return
+
+        logger.info(f"User said: {user_text}")
+
+        # if user says "new order" or "start over", reset state
+        if user_text.lower() in ("new order", "start over", "restart"):
+            init_order_state(session)
+            await session.say("Sure. What would you like to order today?", allow_interruptions=True)
+            return
+
+        # If no order state yet, initialize and treat this first utterance as drinkType
+        if not hasattr(session, "order_state"):
+            init_order_state(session)
+            # Treat the incoming transcript as the drinkType (common pattern)
+            reply = await process_order_turn(session, user_text)
+            await session.say(reply, allow_interruptions=True)
+            return
+
+        # Otherwise, continue the stepwise conversation
+        reply = await process_order_turn(session, user_text)
+        await session.say(reply, allow_interruptions=True)
+
+    # synchronous wrapper required by .on()
+    @session.on("user_input_transcribed")
+    def on_user_input_transcribed(event: UserInputTranscribedEvent):
+        # schedule async handler; do not await here
+        try:
+            asyncio.create_task(handle_transcription(event))
+        except RuntimeError:
+            # In rare situations there may be no running loop; get/create one and schedule
+            loop = None
+            try:
+                loop = asyncio.get_event_loop()
+            except Exception:
+                loop = None
+            if loop and loop.is_running():
+                loop.create_task(handle_transcription(event))
+            else:
+                # fallback: run in a new loop (should be rare)
+                asyncio.run(handle_transcription(event))
+
+    # Start the session and connect to the room
     await session.start(
         agent=Assistant(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
-            # For telephony applications, use `BVCTelephony` for best results
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
-    # Join the room and connect to the user
+    # Optional: greet the user when the session is ready
+    # initialize order state so greeting flow is consistent
+    init_order_state(session)
+    await session.say("Welcome to BrewVerse. What would you like to order today?", allow_interruptions=True)
+
     await ctx.connect()
 
 
