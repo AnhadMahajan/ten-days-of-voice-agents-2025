@@ -4,11 +4,6 @@ import os
 from typing import Annotated, Literal, Optional
 from dataclasses import dataclass
 
-print("\n" + "📚" * 50)
-print("🚀 ACTIVE RECALL COACH - DAY 4")
-print("💡 agent.py LOADED SUCCESSFULLY!")
-print("📚" * 50 + "\n")
-
 from dotenv import load_dotenv
 from pydantic import Field
 from livekit.agents import (
@@ -23,16 +18,13 @@ from livekit.agents import (
     RunContext,
 )
 
-# 🔌 PLUGINS
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
-# ======================================================
-# 📚 KNOWLEDGE BASE (PROGRAMMING CONCEPTS)
-# ======================================================
+
 
 CONTENT_FILE = "day4_tutor_content.json"
 
@@ -88,12 +80,9 @@ def load_content():
         print(f"⚠️ Error managing content file: {e}")
         return DEFAULT_CONTENT
 
-# Load content on startup
 COURSE_CONTENT = load_content()
 
-# ======================================================
-# 🧠 STATE MANAGEMENT
-# ======================================================
+
 
 @dataclass
 class TutorState:
@@ -117,9 +106,7 @@ class Userdata:
     tutor_state: TutorState
     agent_session: Optional[AgentSession] = None 
 
-# ======================================================
-# 🛠️ TUTOR TOOLS
-# ======================================================
+
 
 @function_tool
 async def select_topic(
@@ -145,29 +132,23 @@ async def set_learning_mode(
     
     state = ctx.userdata.tutor_state
     
-    # Validate we have a topic selected
     if not state.current_topic_data:
         return "Please select a topic first before choosing a learning mode."
     
-    # Update mode
     state.mode = mode.lower()
     
-    # Switch voice based on mode
     agent_session = ctx.userdata.agent_session 
     
     if agent_session:
         if state.mode == "learn":
-            # 👨‍🏫 MATTHEW: Patient Teacher
             agent_session.tts.update_options(voice="en-US-matthew", style="Conversation")
             instruction = f"Switched to LEARN mode. Now explain this concept clearly: {state.current_topic_data['summary']} Use simple terms and concrete examples."
             
         elif state.mode == "quiz":
-            # 👩‍🏫 ALICIA: Engaging Examiner
             agent_session.tts.update_options(voice="en-US-alicia", style="Conversation")
             instruction = f"Switched to QUIZ mode. Ask this question: {state.current_topic_data['sample_question']} After they answer, provide feedback on their response."
             
         elif state.mode == "teach_back":
-            # 👨‍🎓 KEN: Curious Listener
             agent_session.tts.update_options(voice="en-US-ken", style="Conversation")
             instruction = f"Switched to TEACH-BACK mode. Ask the user to explain '{state.current_topic_data['title']}' to you as if you're a complete beginner. Listen carefully to their explanation."
         else:
@@ -212,9 +193,7 @@ async def list_available_topics(
     topics = [f"• {t['id']}: {t['title']}" for t in COURSE_CONTENT]
     return "Available topics:\n" + "\n".join(topics)
 
-# ======================================================
-# 🧠 AGENT DEFINITION
-# ======================================================
+
 
 class ActiveRecallCoach(Agent):
     def __init__(self):
@@ -268,20 +247,15 @@ async def entrypoint(ctx: JobContext):
     """Main entry point for the agent"""
     ctx.log_context_fields = {"room": ctx.room.name}
 
-    print("\n" + "📚" * 25)
-    print("🚀 STARTING ACTIVE RECALL COACH SESSION")
-    print(f"📚 Loaded {len(COURSE_CONTENT)} topics from Knowledge Base")
-    print("📚" * 25 + "\n")
+
     
-    # 1. Initialize state
     userdata = Userdata(tutor_state=TutorState())
 
-    # 2. Setup agent session
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew",  # Start with Matthew
+            voice="en-US-matthew",   
             style="Conversation",
             text_pacing=True,
         ),
@@ -290,10 +264,8 @@ async def entrypoint(ctx: JobContext):
         userdata=userdata,
     )
     
-    # 3. Store session reference for tools to access
     userdata.agent_session = session
     
-    # 4. Start the session
     await session.start(
         agent=ActiveRecallCoach(),
         room=ctx.room,
@@ -302,7 +274,6 @@ async def entrypoint(ctx: JobContext):
         ),
     )
 
-    # 5. Connect to room (blocks until shutdown)
     await ctx.connect()
 
 if __name__ == "__main__":
