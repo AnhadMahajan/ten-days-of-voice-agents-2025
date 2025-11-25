@@ -1,0 +1,18 @@
+{
+  "name": "Anhat",
+  "company": "Fast Supply",
+  "email": "anhatmahajan06@gmail.com",
+  "role": "Founder",
+  "use_case": "Shopify e-commerce for basic needs items",
+  "team_size": "20 members",
+  "timeline": "starting now",
+  "questions_asked": [
+    "Razorpay pricing and features"
+  ],
+  "conversation_notes": [
+    "User is looking for a payment gateway to integrate with their e-commerce website.",
+    "User's e-commerce is on Shopify and sells basic needs items.",
+    "User wants to know about specific pricing for their Shopify e-commerce business. The team should follow up with pricing details."
+  ],
+  "timestamp": "2025-11-26T01:26:23.755727"
+}

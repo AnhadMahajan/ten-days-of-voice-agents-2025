@@ -1,0 +1,78 @@
+{
+  "company_overview": {
+    "name": "Razorpay",
+    "description": "Razorpay is India's leading payment gateway that enables businesses to accept, process and disburse payments with its product suite. We provide a fast, affordable and secure way for merchants, schools, ecommerce and other companies to accept and disburse payments online.",
+    "founded": "2014",
+    "headquarters": "Bangalore, India"
+  },
+  "products": [
+    {
+      "name": "Payment Gateway",
+      "description": "Accept payments via 100+ payment modes including Credit Card, Debit Card, Net Banking, UPI, and popular wallets with a single integration."
+    },
+    {
+      "name": "Payment Links",
+      "description": "Create and share payment links instantly via SMS, email, messenger, chatbot etc. No coding required."
+    },
+    {
+      "name": "Payment Pages",
+      "description": "Build no-code payment pages to start collecting payments in minutes. Perfect for freelancers and small businesses."
+    },
+    {
+      "name": "Razorpay X",
+      "description": "Complete banking solution for businesses with current accounts, payouts, vendor payments, and expense management."
+    },
+    {
+      "name": "POS Solutions",
+      "description": "Accept in-store payments with Razorpay POS devices supporting cards, UPI, and wallets."
+    }
+  ],
+  "pricing": {
+    "payment_gateway": "2% per transaction (no setup fees, no annual maintenance)",
+    "payment_links": "2% per transaction",
+    "razorpay_x": "Free current account with transaction-based pricing for payouts",
+    "pos": "Contact sales for custom pricing",
+    "note": "Volume discounts available for high transaction businesses"
+  },
+  "target_customers": [
+    "E-commerce businesses",
+    "SaaS companies",
+    "Educational institutions",
+    "Freelancers and consultants",
+    "NGOs and charities",
+    "Retail stores",
+    "Subscription-based businesses"
+  ],
+  "key_features": [
+    "Instant activation (KYC in 2 minutes)",
+    "99.99% uptime",
+    "Industry-leading success rates",
+    "Automatic payment reconciliation",
+    "Smart routing to maximize success",
+    "Fraud detection and prevention",
+    "Real-time dashboard and analytics",
+    "Developer-friendly APIs and SDKs"
+  ],
+  "faqs": [
+    {
+      "question": "Do you have a free tier?",
+      "answer": "There's no monthly fee. You only pay per transaction at 2% with no setup cost or annual maintenance charges. There's no minimum commitment."
+    },
+    {
+      "question": "How long does setup take?",
+      "answer": "You can get started in minutes. KYC verification takes around 2 minutes, and once approved, you can start accepting payments immediately."
+    },
+    {
+      "question": "What payment methods do you support?",
+      "answer": "We support 100+ payment modes including all major credit/debit cards, net banking from 50+ banks, UPI, and popular wallets like Paytm, PhonePe, and Google Pay."
+    },
+    {
+      "question": "Is it secure?",
+      "answer": "Yes, Razorpay is PCI DSS Level 1 compliant, which is the highest security standard in the payments industry. We also have advanced fraud detection systems."
+    },
+    {
+      "question": "Can I use it for international payments?",
+      "answer": "Yes, we support international card payments in 100+ currencies. You'll need to activate international payments in your dashboard."
+    }
+  ]
+}

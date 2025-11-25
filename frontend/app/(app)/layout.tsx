@@ -1,4 +1,4 @@
-import { Brain, Github, Sparkles } from 'lucide-react';
+import { Briefcase, Github, Sparkles, Phone, Users, TrendingUp } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -6,7 +6,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   // Mock data - replace with your actual getAppConfig
-  const companyName = "ActiveRecall";
+  const companyName = "Razorpay";
   const logo = "/logo.svg";
   const logoDark = "/logo-dark.svg";
 
@@ -22,30 +22,51 @@ export default function Layout({ children }: LayoutProps) {
           >
             {/* Animated logo container */}
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur-md opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
-              <div className="relative bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg p-2 shadow-lg group-hover:shadow-xl transition-all duration-300">
-                <Brain className="w-5 h-5 text-white" strokeWidth={2} />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-lg blur-md opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+              <div className="relative bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg p-2 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                <Briefcase className="w-5 h-5 text-white" strokeWidth={2} />
               </div>
             </div>
             
             {/* Brand name */}
             <div className="flex flex-col">
-              <span className="font-bold text-lg bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
+              <span className="font-bold text-lg bg-gradient-to-r from-slate-900 to-blue-700 dark:from-slate-100 dark:to-blue-400 bg-clip-text text-transparent">
                 {companyName}
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Active Recall Coach
+                AI Sales Assistant
               </span>
             </div>
           </a>
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center gap-6">
-            {/* Status Badge */}
-            <div className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-full text-xs font-medium">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span>AI Ready</span>
+            {/* Status Badge with animation */}
+            <div className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <Phone className="w-3 h-3" />
+              <span>SDR Online</span>
             </div>
+
+            {/* Quick Stats */}
+            <div className="hidden lg:flex items-center gap-4">
+              <div className="flex items-center gap-1.5 text-xs">
+                <Users className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                  <span className="font-bold text-slate-900 dark:text-slate-100">8M+</span> Users
+                </span>
+              </div>
+              <div className="w-px h-4 bg-slate-300 dark:bg-slate-700" />
+              <div className="flex items-center gap-1.5 text-xs">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                  <span className="font-bold text-slate-900 dark:text-slate-100">99.99%</span> Uptime
+                </span>
+              </div>
+            </div>
+
+            {/* Separator */}
+            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700" />
 
             {/* Links */}
             <a
@@ -69,9 +90,9 @@ export default function Layout({ children }: LayoutProps) {
             </a>
 
             {/* Built with badge */}
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
               <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                Built with
+                Powered by
               </span>
               <a
                 target="_blank"
@@ -84,19 +105,28 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
 
-          {/* Mobile menu badge */}
-          <div className="flex md:hidden items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
-            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-              Built with
-            </span>
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href="https://livekit.io"
-              className="text-xs font-bold text-blue-600 dark:text-blue-400"
-            >
-              LiveKit
-            </a>
+          {/* Mobile menu */}
+          <div className="flex md:hidden items-center gap-3">
+            {/* Mobile status indicator */}
+            <div className="flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full text-xs font-medium">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span>Live</span>
+            </div>
+            
+            {/* Mobile LiveKit badge */}
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
+              <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                Built with
+              </span>
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://livekit.io"
+                className="text-xs font-bold text-blue-600 dark:text-blue-400"
+              >
+                LiveKit
+              </a>
+            </div>
           </div>
         </nav>
       </header>
@@ -106,20 +136,44 @@ export default function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      {/* Optional: Floating help button */}
+      {/* Floating Contact Badge */}
       <div className="fixed bottom-6 right-6 z-50 hidden lg:block">
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
-          href="https://docs.livekit.io/agents/start/voice-ai/"
-          className="group flex items-center gap-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-5 py-3 rounded-full shadow-xl hover:shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300 hover:scale-105"
-        >
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-          <span className="text-sm font-medium">Need help?</span>
-          <span className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-            View docs →
-          </span>
-        </a>
+        <div className="relative">
+          {/* Pulsing ring */}
+          <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
+          
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://docs.livekit.io/agents/start/voice-ai/"
+            className="relative group flex items-center gap-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-5 py-3 rounded-full shadow-xl hover:shadow-2xl border-2 border-blue-200 dark:border-blue-800 transition-all duration-300 hover:scale-105 hover:border-blue-400 dark:hover:border-blue-600"
+          >
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span className="text-sm font-semibold">Need Help?</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-medium">
+              View Docs →
+            </span>
+          </a>
+        </div>
+      </div>
+
+      {/* Floating Stats Card (Optional - can be toggled) */}
+      <div className="fixed bottom-6 left-6 z-50 hidden xl:block">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border-2 border-slate-200 dark:border-slate-800 p-4 hover:shadow-2xl transition-all duration-300 hover:scale-105">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg p-2">
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Active Users</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">8M+</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span>All systems operational</span>
+          </div>
+        </div>
       </div>
     </>
   );

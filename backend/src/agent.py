@@ -1,8 +1,9 @@
 import logging
 import json
 import os
-from typing import Annotated, Literal, Optional
-from dataclasses import dataclass
+from typing import Annotated, Optional
+from dataclasses import dataclass, field
+from datetime import datetime
 
 from dotenv import load_dotenv
 from pydantic import Field
@@ -24,238 +25,363 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
+# Company: Razorpay (Indian Payment Gateway Startup)
+COMPANY_NAME = "Razorpay"
+COMPANY_FAQ_FILE = "razorpay_faq.json"
 
+# FAQ Content for Razorpay
+DEFAULT_FAQ = {
+    "company_overview": {
+        "name": "Razorpay",
+        "description": "Razorpay is India's leading payment gateway that enables businesses to accept, process and disburse payments with its product suite. We provide a fast, affordable and secure way for merchants, schools, ecommerce and other companies to accept and disburse payments online.",
+        "founded": "2014",
+        "headquarters": "Bangalore, India"
+    },
+    "products": [
+        {
+            "name": "Payment Gateway",
+            "description": "Accept payments via 100+ payment modes including Credit Card, Debit Card, Net Banking, UPI, and popular wallets with a single integration."
+        },
+        {
+            "name": "Payment Links",
+            "description": "Create and share payment links instantly via SMS, email, messenger, chatbot etc. No coding required."
+        },
+        {
+            "name": "Payment Pages",
+            "description": "Build no-code payment pages to start collecting payments in minutes. Perfect for freelancers and small businesses."
+        },
+        {
+            "name": "Razorpay X",
+            "description": "Complete banking solution for businesses with current accounts, payouts, vendor payments, and expense management."
+        },
+        {
+            "name": "POS Solutions",
+            "description": "Accept in-store payments with Razorpay POS devices supporting cards, UPI, and wallets."
+        }
+    ],
+    "pricing": {
+        "payment_gateway": "2% per transaction (no setup fees, no annual maintenance)",
+        "payment_links": "2% per transaction",
+        "razorpay_x": "Free current account with transaction-based pricing for payouts",
+        "pos": "Contact sales for custom pricing",
+        "note": "Volume discounts available for high transaction businesses"
+    },
+    "target_customers": [
+        "E-commerce businesses",
+        "SaaS companies",
+        "Educational institutions",
+        "Freelancers and consultants",
+        "NGOs and charities",
+        "Retail stores",
+        "Subscription-based businesses"
+    ],
+    "key_features": [
+        "Instant activation (KYC in 2 minutes)",
+        "99.99% uptime",
+        "Industry-leading success rates",
+        "Automatic payment reconciliation",
+        "Smart routing to maximize success",
+        "Fraud detection and prevention",
+        "Real-time dashboard and analytics",
+        "Developer-friendly APIs and SDKs"
+    ],
+    "faqs": [
+        {
+            "question": "Do you have a free tier?",
+            "answer": "There's no monthly fee. You only pay per transaction at 2% with no setup cost or annual maintenance charges. There's no minimum commitment."
+        },
+        {
+            "question": "How long does setup take?",
+            "answer": "You can get started in minutes. KYC verification takes around 2 minutes, and once approved, you can start accepting payments immediately."
+        },
+        {
+            "question": "What payment methods do you support?",
+            "answer": "We support 100+ payment modes including all major credit/debit cards, net banking from 50+ banks, UPI, and popular wallets like Paytm, PhonePe, and Google Pay."
+        },
+        {
+            "question": "Is it secure?",
+            "answer": "Yes, Razorpay is PCI DSS Level 1 compliant, which is the highest security standard in the payments industry. We also have advanced fraud detection systems."
+        },
+        {
+            "question": "Can I use it for international payments?",
+            "answer": "Yes, we support international card payments in 100+ currencies. You'll need to activate international payments in your dashboard."
+        }
+    ]
+}
 
-CONTENT_FILE = "day4_tutor_content.json"
-
-DEFAULT_CONTENT = [
-    {
-        "id": "variables",
-        "title": "Variables",
-        "summary": "Variables are like labeled containers that store information in your program. Think of them as boxes with name tags - you can put data in them, check what's inside, or change the contents. They're useful because they let you reuse values throughout your code without typing them repeatedly, and they make your code more flexible and easier to update.",
-        "sample_question": "What is a variable and why is it useful in programming?"
-    },
-    {
-        "id": "loops",
-        "title": "Loops",
-        "summary": "Loops are programming structures that repeat actions multiple times automatically. Instead of writing the same code over and over, you use a loop to tell the computer 'do this 10 times' or 'keep doing this until a condition is met.' The two main types are 'for loops' which repeat a specific number of times, and 'while loops' which repeat as long as a condition stays true.",
-        "sample_question": "Explain the difference between a for loop and a while loop. When would you use each one?"
-    },
-    {
-        "id": "functions",
-        "title": "Functions",
-        "summary": "Functions are reusable blocks of code that perform a specific task. Like a recipe, they take inputs (called parameters), do something with them, and often return a result. Functions help organize code, avoid repetition, and make programs easier to understand and maintain. You can think of them as mini-programs within your main program.",
-        "sample_question": "What is a function and what are the benefits of using functions in your code?"
-    },
-    {
-        "id": "conditionals",
-        "title": "Conditionals",
-        "summary": "Conditionals are decision-making structures in code, using if-then-else logic. They let your program choose different paths based on whether conditions are true or false. For example, 'if the user is logged in, show the dashboard, else show the login page.' This makes programs dynamic and responsive to different situations.",
-        "sample_question": "How do conditionals work and why are they important for making programs interactive?"
-    },
-    {
-        "id": "data_types",
-        "title": "Data Types",
-        "summary": "Data types define what kind of information a variable can hold - like numbers, text, true/false values, or collections of items. Each type has different capabilities: you can do math with numbers, combine text strings, or check boolean true/false conditions. Understanding data types helps prevent errors and lets you use the right operations for each kind of data.",
-        "sample_question": "Name three common data types and explain what each one is used for."
-    }
-]
-
-def load_content():
-    """📖 Loads or creates the tutor content JSON file"""
+def load_faq():
+    """📖 Loads or creates the FAQ JSON file"""
     try:
-        path = os.path.join(os.path.dirname(__file__), CONTENT_FILE)
+        path = os.path.join(os.path.dirname(__file__), COMPANY_FAQ_FILE)
         
         if not os.path.exists(path):
-            print(f"⚠️ {CONTENT_FILE} not found. Generating content...")
+            print(f"⚠️ {COMPANY_FAQ_FILE} not found. Creating FAQ file...")
             with open(path, "w", encoding='utf-8') as f:
-                json.dump(DEFAULT_CONTENT, f, indent=2)
-            print("✅ Content file created successfully.")
+                json.dump(DEFAULT_FAQ, f, indent=2)
+            print("✅ FAQ file created successfully.")
             
         with open(path, "r", encoding='utf-8') as f:
             data = json.load(f)
             return data
             
     except Exception as e:
-        print(f"⚠️ Error managing content file: {e}")
-        return DEFAULT_CONTENT
+        print(f"⚠️ Error managing FAQ file: {e}")
+        return DEFAULT_FAQ
 
-COURSE_CONTENT = load_content()
-
-
+FAQ_CONTENT = load_faq()
 
 @dataclass
-class TutorState:
-    """🧠 Tracks the current learning context"""
-    current_topic_id: str | None = None
-    current_topic_data: dict | None = None
-    mode: Literal["learn", "quiz", "teach_back"] = "learn"
+class LeadInfo:
+    """💼 Stores lead information"""
+    name: Optional[str] = None
+    company: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    use_case: Optional[str] = None
+    team_size: Optional[str] = None
+    timeline: Optional[str] = None
+    questions_asked: list = field(default_factory=list)
+    conversation_notes: list = field(default_factory=list)
     
-    def set_topic(self, topic_id: str):
-        """Set the current topic by ID"""
-        topic = next((item for item in COURSE_CONTENT if item["id"] == topic_id), None)
-        if topic:
-            self.current_topic_id = topic_id
-            self.current_topic_data = topic
-            return True
-        return False
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "company": self.company,
+            "email": self.email,
+            "role": self.role,
+            "use_case": self.use_case,
+            "team_size": self.team_size,
+            "timeline": self.timeline,
+            "questions_asked": self.questions_asked,
+            "conversation_notes": self.conversation_notes,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def is_complete(self):
+        """Check if we have minimum required info"""
+        return bool(self.name and self.email and self.use_case)
 
 @dataclass
 class Userdata:
     """User session data"""
-    tutor_state: TutorState
-    agent_session: Optional[AgentSession] = None 
-
-
+    lead_info: LeadInfo
+    agent_session: Optional[AgentSession] = None
+    conversation_stage: str = "greeting"  # greeting -> discovery -> qualification -> closing
 
 @function_tool
-async def select_topic(
+async def search_faq(
     ctx: RunContext[Userdata], 
-    topic_id: Annotated[str, Field(description="The ID of the topic to study (e.g., 'variables', 'loops', 'functions')")]
+    query: Annotated[str, Field(description="The user's question about the product, pricing, features, or company")]
 ) -> str:
-    """📚 Selects a topic to study from the available list."""
-    state = ctx.userdata.tutor_state
-    success = state.set_topic(topic_id.lower())
+    """🔍 Searches the FAQ for relevant information to answer user questions."""
     
-    if success:
-        return f"Topic set to '{state.current_topic_data['title']}'. Now ask the user which mode they'd like: 'Learn' to have it explained, 'Quiz' to be tested, or 'Teach Back' to explain it themselves."
-    else:
-        available = ", ".join([t["id"] for t in COURSE_CONTENT])
-        return f"Topic '{topic_id}' not found. Available topics: {available}"
+    query_lower = query.lower()
+    lead = ctx.userdata.lead_info
+    lead.questions_asked.append(query)
+    
+    print(f"🔍 FAQ SEARCH: {query}")
+    
+    # Search in FAQs first
+    for faq in FAQ_CONTENT.get("faqs", []):
+        if any(word in faq["question"].lower() for word in query_lower.split()):
+            return f"Found in FAQ: {faq['answer']}"
+    
+    # Search in products
+    if any(word in query_lower for word in ["product", "feature", "what do you do", "service", "offer"]):
+        products = FAQ_CONTENT.get("products", [])
+        overview = FAQ_CONTENT.get("company_overview", {}).get("description", "")
+        product_list = "\n".join([f"• {p['name']}: {p['description']}" for p in products])
+        return f"Company Overview: {overview}\n\nOur main products:\n{product_list}"
+    
+    # Search in pricing
+    if any(word in query_lower for word in ["price", "cost", "pricing", "fee", "charge", "free"]):
+        pricing = FAQ_CONTENT.get("pricing", {})
+        pricing_info = "\n".join([f"• {k.replace('_', ' ').title()}: {v}" for k, v in pricing.items() if k != "note"])
+        note = pricing.get("note", "")
+        return f"Pricing:\n{pricing_info}\n\nNote: {note}"
+    
+    # Search in target customers
+    if any(word in query_lower for word in ["who", "customer", "for whom", "suitable", "industry"]):
+        customers = FAQ_CONTENT.get("target_customers", [])
+        return f"Razorpay is perfect for: {', '.join(customers)}"
+    
+    # Search in features
+    if any(word in query_lower for word in ["feature", "capability", "benefit"]):
+        features = FAQ_CONTENT.get("key_features", [])
+        return f"Key features: {', '.join(features)}"
+    
+    return "I don't have specific information about that in my knowledge base. Let me note that down and our team can follow up with details. What else would you like to know?"
 
 @function_tool
-async def set_learning_mode(
-    ctx: RunContext[Userdata], 
-    mode: Annotated[str, Field(description="The mode to switch to: 'learn', 'quiz', or 'teach_back'")]
-) -> str:
-    """🔄 Switches the interaction mode and updates the agent's voice/persona."""
-    
-    state = ctx.userdata.tutor_state
-    
-    if not state.current_topic_data:
-        return "Please select a topic first before choosing a learning mode."
-    
-    state.mode = mode.lower()
-    
-    agent_session = ctx.userdata.agent_session 
-    
-    if agent_session:
-        if state.mode == "learn":
-            agent_session.tts.update_options(voice="en-US-matthew", style="Conversation")
-            instruction = f"Switched to LEARN mode. Now explain this concept clearly: {state.current_topic_data['summary']} Use simple terms and concrete examples."
-            
-        elif state.mode == "quiz":
-            agent_session.tts.update_options(voice="en-US-alicia", style="Conversation")
-            instruction = f"Switched to QUIZ mode. Ask this question: {state.current_topic_data['sample_question']} After they answer, provide feedback on their response."
-            
-        elif state.mode == "teach_back":
-            agent_session.tts.update_options(voice="en-US-ken", style="Conversation")
-            instruction = f"Switched to TEACH-BACK mode. Ask the user to explain '{state.current_topic_data['title']}' to you as if you're a complete beginner. Listen carefully to their explanation."
-        else:
-            return "Invalid mode. Use 'learn', 'quiz', or 'teach_back'."
-    else:
-        instruction = "Voice switch failed (session not found)."
-
-    print(f"🔄 MODE SWITCH: {state.mode.upper()} | Topic: {state.current_topic_data['title']}")
-    return instruction
-
-@function_tool
-async def evaluate_teaching(
+async def update_lead_info(
     ctx: RunContext[Userdata],
-    user_explanation: Annotated[str, Field(description="The user's explanation of the concept in teach-back mode")]
+    field: Annotated[str, Field(description="The field to update: name, company, email, role, use_case, team_size, or timeline")],
+    value: Annotated[str, Field(description="The value provided by the user")]
 ) -> str:
-    """📝 Evaluates the user's explanation when they teach the concept back."""
+    """📝 Updates lead information as the user shares details during conversation."""
     
-    state = ctx.userdata.tutor_state
+    lead = ctx.userdata.lead_info
+    field_lower = field.lower()
     
-    if not state.current_topic_data:
-        return "No topic selected to evaluate."
+    if hasattr(lead, field_lower):
+        setattr(lead, field_lower, value)
+        print(f"✅ Updated {field_lower}: {value}")
+        
+        # Provide natural confirmation
+        confirmations = {
+            "name": f"Great to meet you, {value}!",
+            "company": f"Thanks! And what's your role at {value}?",
+            "email": "Perfect, I've got your email.",
+            "role": "Got it. That helps me understand your needs better.",
+            "use_case": "That's really helpful to know.",
+            "team_size": "Thanks for sharing that.",
+            "timeline": "Good to know your timeline."
+        }
+        
+        return confirmations.get(field_lower, f"Thanks for sharing your {field_lower}.")
     
-    correct_summary = state.current_topic_data['summary']
-    
-    print(f"📝 EVALUATING: {user_explanation[:100]}...")
-    
-    return f"""Analyze the user's explanation against this correct summary: '{correct_summary}'.
-
-Provide feedback in this format:
-1. Score their explanation (1-10) for accuracy and clarity
-2. What they explained well (be specific)
-3. What was missing or could be clearer
-4. One concrete suggestion for improvement
-
-Be encouraging and constructive!"""
+    return "I couldn't update that field. Please try again."
 
 @function_tool
-async def list_available_topics(
+async def save_lead_and_summarize(
     ctx: RunContext[Userdata]
 ) -> str:
-    """📋 Lists all available topics the user can study."""
-    topics = [f"• {t['id']}: {t['title']}" for t in COURSE_CONTENT]
-    return "Available topics:\n" + "\n".join(topics)
+    """💾 Saves the lead information to a JSON file and provides a summary."""
+    
+    lead = ctx.userdata.lead_info
+    
+    # Save to JSON file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"lead_{timestamp}.json"
+    filepath = os.path.join(os.path.dirname(__file__), filename)
+    
+    try:
+        with open(filepath, "w", encoding='utf-8') as f:
+            json.dump(lead.to_dict(), f, indent=2)
+        print(f"💾 Lead saved to {filename}")
+    except Exception as e:
+        print(f"⚠️ Error saving lead: {e}")
+    
+    # Create summary for the agent to speak
+    summary = f"""Let me quickly summarize our conversation:
 
+I spoke with {lead.name or 'a prospective customer'}"""
+    
+    if lead.company:
+        summary += f" from {lead.company}"
+    
+    if lead.role:
+        summary += f", who is a {lead.role}"
+    
+    if lead.use_case:
+        summary += f". They're looking to {lead.use_case}"
+    
+    if lead.team_size:
+        summary += f" for their team of {lead.team_size}"
+    
+    if lead.timeline:
+        summary += f". Their timeline is: {lead.timeline}"
+    
+    summary += ".\n\nI've saved all the details and our team will reach out shortly. Thank you for your time!"
+    
+    return summary
 
+@function_tool
+async def add_conversation_note(
+    ctx: RunContext[Userdata],
+    note: Annotated[str, Field(description="Important information or context from the conversation")]
+) -> str:
+    """📌 Adds a note about something important mentioned in the conversation."""
+    
+    lead = ctx.userdata.lead_info
+    lead.conversation_notes.append(note)
+    print(f"📌 Note added: {note}")
+    return "Note recorded."
 
-class ActiveRecallCoach(Agent):
+class RazorpaySDR(Agent):
     def __init__(self):
-        # Generate topic list for instructions
-        topic_list = ", ".join([f"{t['id']}" for t in COURSE_CONTENT])
-        
         super().__init__(
-            instructions=f"""You are an Active Recall Coach that helps users master concepts through three proven learning techniques.
+            instructions=f"""You are a friendly and professional Sales Development Representative (SDR) for {COMPANY_NAME}, India's leading payment gateway.
 
-📚 **AVAILABLE TOPICS:** {topic_list}
+🎯 **YOUR ROLE:**
+You're here to:
+1. Understand what brought the visitor to Razorpay
+2. Learn about their business and payment needs
+3. Answer their questions using the FAQ
+4. Naturally collect key information to qualify the lead
+5. Set up next steps if they're interested
 
-🎯 **THREE LEARNING MODES:**
+💬 **CONVERSATION FLOW:**
 
-1. **LEARN Mode **
-   - You're a patient teacher using the Feynman Technique
-   - Explain concepts clearly with concrete examples
-   - Break down complex ideas into digestible pieces
+**GREETING (Start here)**
+- Warmly introduce yourself: "Hi! I'm the virtual SDR for Razorpay. Great to have you here!"
+- Ask: "What brings you to Razorpay today?" or "What are you currently working on?"
 
-2. **QUIZ Mode **
-   - You're an engaging quiz master testing comprehension
-   - Ask thoughtful questions to check understanding
-   - Provide constructive feedback on answers
+**DISCOVERY**
+- Listen actively to their needs
+- When they ask questions, use `search_faq` to find accurate answers
+- Ask follow-up questions to understand their use case better
+- Naturally ask about their business/project
 
-3. **TEACH-BACK Mode **
-   - You're a curious learner who wants to understand
-   - Ask the user to explain the concept to you
-   - Listen carefully, then evaluate their explanation
+**QUALIFICATION (Collect these naturally in conversation)**
+As you chat, collect:
+- Name: "By the way, what should I call you?"
+- Company: "What company are you with?" or "What's your business called?"
+- Email: "What's the best email to reach you at?"
+- Role: "What's your role there?"
+- Use case: "What would you primarily use Razorpay for?" (Already asked earlier)
+- Team size: "How big is your team?"
+- Timeline: "When are you looking to get started?" (now / within a month / exploring)
 
-⚙️ **HOW TO INTERACT:**
+Use `update_lead_info` each time they share one of these details.
 
-1. First, ask what topic they want to study (use `list_available_topics` if they're unsure)
-2. Use `select_topic` when they choose a topic
-3. Ask which mode they prefer: learn, quiz, or teach back
-4. Use `set_learning_mode` immediately when they indicate their choice
-5. In teach-back mode, after hearing their full explanation, use `evaluate_teaching` to give detailed feedback
-6. Users can switch topics or modes anytime - just use the appropriate tool
+**IMPORTANT NOTES:**
+- Add interesting insights to notes using `add_conversation_note`
+- If they ask about things not in the FAQ, be honest: "I don't have those specific details, but I'll note that down for our team to follow up on."
+- Keep the conversation natural - don't rapid-fire questions
+- Be genuinely curious about their business
 
-💡 **TIPS:**
-- Keep responses conversational and encouraging
-- In teach-back mode, really listen before evaluating
-- Celebrate progress and effort
-- Make learning feel supportive, not intimidating""",
-            tools=[select_topic, set_learning_mode, evaluate_teaching, list_available_topics],
+**CLOSING**
+When they say things like "That's all", "Thanks", "I'm good", "I need to go":
+1. Use `save_lead_and_summarize` to save their info and create a verbal summary
+2. Thank them warmly
+3. Let them know the team will follow up
+
+**CONVERSATION STYLE:**
+- Friendly but professional
+- Ask one question at a time
+- Listen more than you talk
+- Show genuine interest in their business
+- Be helpful, not pushy
+- Use natural language, not robotic
+
+**KEY TOOLS:**
+- `search_faq`: Answer product/pricing/company questions
+- `update_lead_info`: Store lead details as they share them
+- `add_conversation_note`: Note important conversation points
+- `save_lead_and_summarize`: End the call and save everything
+
+Remember: You're helping them explore if Razorpay is right for their business. Be consultative, not salesy!""",
+            tools=[search_faq, update_lead_info, add_conversation_note, save_lead_and_summarize],
         )
 
 def prewarm(proc: JobProcess):
-    """Preload VAD model"""
+    """Preload VAD model and FAQ content"""
     proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["faq"] = load_faq()
+    print("✅ Prewarmed: VAD model and FAQ content loaded")
 
 async def entrypoint(ctx: JobContext):
-    """Main entry point for the agent"""
+    """Main entry point for the SDR agent"""
     ctx.log_context_fields = {"room": ctx.room.name}
-
-
     
-    userdata = Userdata(tutor_state=TutorState())
+    userdata = Userdata(lead_info=LeadInfo())
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew",   
+            voice="en-US-terrell",  # Professional SDR voice
             style="Conversation",
             text_pacing=True,
         ),
@@ -267,7 +393,7 @@ async def entrypoint(ctx: JobContext):
     userdata.agent_session = session
     
     await session.start(
-        agent=ActiveRecallCoach(),
+        agent=RazorpaySDR(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC()
