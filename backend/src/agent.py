@@ -1,375 +1,309 @@
-import asyncio
 import logging
 import json
 import os
-import time
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from typing import Annotated, Literal, Optional
+from dataclasses import dataclass
 
+print("\n" + "📚" * 50)
+print("🚀 ACTIVE RECALL COACH - DAY 4")
+print("💡 agent.py LOADED SUCCESSFULLY!")
+print("📚" * 50 + "\n")
+
+from dotenv import load_dotenv
+from pydantic import Field
 from livekit.agents import (
     Agent,
     AgentSession,
     JobContext,
     JobProcess,
-    MetricsCollectedEvent,
     RoomInputOptions,
     WorkerOptions,
     cli,
-    metrics,
-    tokenize,
+    function_tool,
+    RunContext,
 )
+
+# 🔌 PLUGINS
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from livekit.agents import UserInputTranscribedEvent
-
 logger = logging.getLogger("agent")
-
 load_dotenv(".env.local")
 
+# ======================================================
+# 📚 KNOWLEDGE BASE (PROGRAMMING CONCEPTS)
+# ======================================================
 
-class WellnessAssistant(Agent):
-    def __init__(self) -> None:
+CONTENT_FILE = "day4_tutor_content.json"
+
+DEFAULT_CONTENT = [
+    {
+        "id": "variables",
+        "title": "Variables",
+        "summary": "Variables are like labeled containers that store information in your program. Think of them as boxes with name tags - you can put data in them, check what's inside, or change the contents. They're useful because they let you reuse values throughout your code without typing them repeatedly, and they make your code more flexible and easier to update.",
+        "sample_question": "What is a variable and why is it useful in programming?"
+    },
+    {
+        "id": "loops",
+        "title": "Loops",
+        "summary": "Loops are programming structures that repeat actions multiple times automatically. Instead of writing the same code over and over, you use a loop to tell the computer 'do this 10 times' or 'keep doing this until a condition is met.' The two main types are 'for loops' which repeat a specific number of times, and 'while loops' which repeat as long as a condition stays true.",
+        "sample_question": "Explain the difference between a for loop and a while loop. When would you use each one?"
+    },
+    {
+        "id": "functions",
+        "title": "Functions",
+        "summary": "Functions are reusable blocks of code that perform a specific task. Like a recipe, they take inputs (called parameters), do something with them, and often return a result. Functions help organize code, avoid repetition, and make programs easier to understand and maintain. You can think of them as mini-programs within your main program.",
+        "sample_question": "What is a function and what are the benefits of using functions in your code?"
+    },
+    {
+        "id": "conditionals",
+        "title": "Conditionals",
+        "summary": "Conditionals are decision-making structures in code, using if-then-else logic. They let your program choose different paths based on whether conditions are true or false. For example, 'if the user is logged in, show the dashboard, else show the login page.' This makes programs dynamic and responsive to different situations.",
+        "sample_question": "How do conditionals work and why are they important for making programs interactive?"
+    },
+    {
+        "id": "data_types",
+        "title": "Data Types",
+        "summary": "Data types define what kind of information a variable can hold - like numbers, text, true/false values, or collections of items. Each type has different capabilities: you can do math with numbers, combine text strings, or check boolean true/false conditions. Understanding data types helps prevent errors and lets you use the right operations for each kind of data.",
+        "sample_question": "Name three common data types and explain what each one is used for."
+    }
+]
+
+def load_content():
+    """📖 Loads or creates the tutor content JSON file"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), CONTENT_FILE)
+        
+        if not os.path.exists(path):
+            print(f"⚠️ {CONTENT_FILE} not found. Generating content...")
+            with open(path, "w", encoding='utf-8') as f:
+                json.dump(DEFAULT_CONTENT, f, indent=2)
+            print("✅ Content file created successfully.")
+            
+        with open(path, "r", encoding='utf-8') as f:
+            data = json.load(f)
+            return data
+            
+    except Exception as e:
+        print(f"⚠️ Error managing content file: {e}")
+        return DEFAULT_CONTENT
+
+# Load content on startup
+COURSE_CONTENT = load_content()
+
+# ======================================================
+# 🧠 STATE MANAGEMENT
+# ======================================================
+
+@dataclass
+class TutorState:
+    """🧠 Tracks the current learning context"""
+    current_topic_id: str | None = None
+    current_topic_data: dict | None = None
+    mode: Literal["learn", "quiz", "teach_back"] = "learn"
+    
+    def set_topic(self, topic_id: str):
+        """Set the current topic by ID"""
+        topic = next((item for item in COURSE_CONTENT if item["id"] == topic_id), None)
+        if topic:
+            self.current_topic_id = topic_id
+            self.current_topic_data = topic
+            return True
+        return False
+
+@dataclass
+class Userdata:
+    """User session data"""
+    tutor_state: TutorState
+    agent_session: Optional[AgentSession] = None 
+
+# ======================================================
+# 🛠️ TUTOR TOOLS
+# ======================================================
+
+@function_tool
+async def select_topic(
+    ctx: RunContext[Userdata], 
+    topic_id: Annotated[str, Field(description="The ID of the topic to study (e.g., 'variables', 'loops', 'functions')")]
+) -> str:
+    """📚 Selects a topic to study from the available list."""
+    state = ctx.userdata.tutor_state
+    success = state.set_topic(topic_id.lower())
+    
+    if success:
+        return f"Topic set to '{state.current_topic_data['title']}'. Now ask the user which mode they'd like: 'Learn' to have it explained, 'Quiz' to be tested, or 'Teach Back' to explain it themselves."
+    else:
+        available = ", ".join([t["id"] for t in COURSE_CONTENT])
+        return f"Topic '{topic_id}' not found. Available topics: {available}"
+
+@function_tool
+async def set_learning_mode(
+    ctx: RunContext[Userdata], 
+    mode: Annotated[str, Field(description="The mode to switch to: 'learn', 'quiz', or 'teach_back'")]
+) -> str:
+    """🔄 Switches the interaction mode and updates the agent's voice/persona."""
+    
+    state = ctx.userdata.tutor_state
+    
+    # Validate we have a topic selected
+    if not state.current_topic_data:
+        return "Please select a topic first before choosing a learning mode."
+    
+    # Update mode
+    state.mode = mode.lower()
+    
+    # Switch voice based on mode
+    agent_session = ctx.userdata.agent_session 
+    
+    if agent_session:
+        if state.mode == "learn":
+            # 👨‍🏫 MATTHEW: Patient Teacher
+            agent_session.tts.update_options(voice="en-US-matthew", style="Conversation")
+            instruction = f"Switched to LEARN mode. Now explain this concept clearly: {state.current_topic_data['summary']} Use simple terms and concrete examples."
+            
+        elif state.mode == "quiz":
+            # 👩‍🏫 ALICIA: Engaging Examiner
+            agent_session.tts.update_options(voice="en-US-alicia", style="Conversation")
+            instruction = f"Switched to QUIZ mode. Ask this question: {state.current_topic_data['sample_question']} After they answer, provide feedback on their response."
+            
+        elif state.mode == "teach_back":
+            # 👨‍🎓 KEN: Curious Listener
+            agent_session.tts.update_options(voice="en-US-ken", style="Conversation")
+            instruction = f"Switched to TEACH-BACK mode. Ask the user to explain '{state.current_topic_data['title']}' to you as if you're a complete beginner. Listen carefully to their explanation."
+        else:
+            return "Invalid mode. Use 'learn', 'quiz', or 'teach_back'."
+    else:
+        instruction = "Voice switch failed (session not found)."
+
+    print(f"🔄 MODE SWITCH: {state.mode.upper()} | Topic: {state.current_topic_data['title']}")
+    return instruction
+
+@function_tool
+async def evaluate_teaching(
+    ctx: RunContext[Userdata],
+    user_explanation: Annotated[str, Field(description="The user's explanation of the concept in teach-back mode")]
+) -> str:
+    """📝 Evaluates the user's explanation when they teach the concept back."""
+    
+    state = ctx.userdata.tutor_state
+    
+    if not state.current_topic_data:
+        return "No topic selected to evaluate."
+    
+    correct_summary = state.current_topic_data['summary']
+    
+    print(f"📝 EVALUATING: {user_explanation[:100]}...")
+    
+    return f"""Analyze the user's explanation against this correct summary: '{correct_summary}'.
+
+Provide feedback in this format:
+1. Score their explanation (1-10) for accuracy and clarity
+2. What they explained well (be specific)
+3. What was missing or could be clearer
+4. One concrete suggestion for improvement
+
+Be encouraging and constructive!"""
+
+@function_tool
+async def list_available_topics(
+    ctx: RunContext[Userdata]
+) -> str:
+    """📋 Lists all available topics the user can study."""
+    topics = [f"• {t['id']}: {t['title']}" for t in COURSE_CONTENT]
+    return "Available topics:\n" + "\n".join(topics)
+
+# ======================================================
+# 🧠 AGENT DEFINITION
+# ======================================================
+
+class ActiveRecallCoach(Agent):
+    def __init__(self):
+        # Generate topic list for instructions
+        topic_list = ", ".join([f"{t['id']}" for t in COURSE_CONTENT])
+        
         super().__init__(
-            instructions="""
-You are CalmCompanion, a friendly, grounded health & wellness voice companion.
-Your role is to check in briefly each day with the user about mood, energy, stress,
-and 1–3 simple objectives. Keep questions short and supportive. Offer small, actionable,
-non-medical suggestions (e.g., "try a 5-minute walk", "break the task into one small step").
-Do not diagnose or give medical advice. Be warm but concise. Listen actively and validate
-their feelings without being preachy. Persist each check-in to a JSON log and
-refer to previous entries briefly when the user returns to show continuity.
-"""
+            instructions=f"""You are an Active Recall Coach that helps users master concepts through three proven learning techniques.
+
+📚 **AVAILABLE TOPICS:** {topic_list}
+
+🎯 **THREE LEARNING MODES:**
+
+1. **LEARN Mode **
+   - You're a patient teacher using the Feynman Technique
+   - Explain concepts clearly with concrete examples
+   - Break down complex ideas into digestible pieces
+
+2. **QUIZ Mode **
+   - You're an engaging quiz master testing comprehension
+   - Ask thoughtful questions to check understanding
+   - Provide constructive feedback on answers
+
+3. **TEACH-BACK Mode **
+   - You're a curious learner who wants to understand
+   - Ask the user to explain the concept to you
+   - Listen carefully, then evaluate their explanation
+
+⚙️ **HOW TO INTERACT:**
+
+1. First, ask what topic they want to study (use `list_available_topics` if they're unsure)
+2. Use `select_topic` when they choose a topic
+3. Ask which mode they prefer: learn, quiz, or teach back
+4. Use `set_learning_mode` immediately when they indicate their choice
+5. In teach-back mode, after hearing their full explanation, use `evaluate_teaching` to give detailed feedback
+6. Users can switch topics or modes anytime - just use the appropriate tool
+
+💡 **TIPS:**
+- Keep responses conversational and encouraging
+- In teach-back mode, really listen before evaluating
+- Celebrate progress and effort
+- Make learning feel supportive, not intimidating""",
+            tools=[select_topic, set_learning_mode, evaluate_teaching, list_available_topics],
         )
 
-
 def prewarm(proc: JobProcess):
-    # Preload voice activity detection model once per process
+    """Preload VAD model"""
     proc.userdata["vad"] = silero.VAD.load()
 
-
 async def entrypoint(ctx: JobContext):
+    """Main entry point for the agent"""
     ctx.log_context_fields = {"room": ctx.room.name}
 
-    # Configure an agent session using the same plugin stack as the starter template.
+    print("\n" + "📚" * 25)
+    print("🚀 STARTING ACTIVE RECALL COACH SESSION")
+    print(f"📚 Loaded {len(COURSE_CONTENT)} topics from Knowledge Base")
+    print("📚" * 25 + "\n")
+    
+    # 1. Initialize state
+    userdata = Userdata(tutor_state=TutorState())
+
+    # 2. Setup agent session
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew",
+            voice="en-US-matthew",  # Start with Matthew
             style="Conversation",
-            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
             text_pacing=True,
         ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        preemptive_generation=True,
+        userdata=userdata,
     )
-
-    usage_collector = metrics.UsageCollector()
-
-    @session.on("metrics_collected")
-    def _on_metrics_collected(ev: MetricsCollectedEvent):
-        metrics.log_metrics(ev.metrics)
-        usage_collector.collect(ev.metrics)
-
-    async def log_usage():
-        summary = usage_collector.get_summary()
-        logger.info(f"Usage: {summary}")
-
-    ctx.add_shutdown_callback(log_usage)
-
-    # determine a reliable path for the JSON file next to this agent file
-    BASE_DIR = os.path.dirname(__file__)
-    DATA_DIR = os.path.join(BASE_DIR, "data")
-    LOG_FILE = os.path.join(DATA_DIR, "wellness_log.json")
-
-    def ensure_data_dir():
-        os.makedirs(DATA_DIR, exist_ok=True)
-        if not os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "w", encoding="utf-8") as fh:
-                json.dump([], fh, indent=2)
-
-    def load_log():
-        ensure_data_dir()
-        try:
-            with open(LOG_FILE, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception:
-            logger.exception("Failed to read wellness log")
-            return []
-
-    def save_entry(entry: dict):
-        ensure_data_dir()
-        try:
-            log = load_log()
-            log.append(entry)
-            with open(LOG_FILE, "w", encoding="utf-8") as fh:
-                json.dump(log, fh, indent=2, ensure_ascii=False)
-            logger.info(f"Saved wellness entry at {entry.get('timestamp')}")
-            return True
-        except Exception:
-            logger.exception("Failed to save wellness entry")
-            return False
-
-    def get_recent_context(past_entries, limit=3):
-        """Extract insights from recent check-ins for more personalized greetings."""
-        if not past_entries:
-            return None
-        
-        recent = past_entries[-limit:]
-        
-        # Analyze patterns
-        moods = [e.get("mood", "").lower() for e in recent if e.get("mood")]
-        energies = [e.get("energy", "").lower() for e in recent if e.get("energy")]
-        
-        context = {
-            "last_entry": recent[-1],
-            "recent_moods": moods,
-            "recent_energies": energies,
-            "total_checkins": len(past_entries)
-        }
-        
-        return context
-
-    def init_wellness_state(s):
-        # Create a fresh in-memory session state
-        state = {
-            "timestamp": datetime.now().isoformat(),
-            "mood": None,
-            "energy": None,
-            "stress": None,
-            "goals": [],
-            "summary": None,
-            "finished_at": None,
-        }
-        setattr(s, "wellness_state", state)
-        setattr(s, "wellness_step", 0)
-        return state
-
-    async def process_wellness_turn(s, transcript: str):
-        """
-        A simple step-driven handler that collects:
-          - mood (text)
-          - energy (text or scale)
-          - stress (text)
-          - goals (comma-separated or short list)
-        Then produces a short grounding suggestion and a recap, saves to JSON.
-        """
-        state = getattr(s, "wellness_state", None)
-        step = getattr(s, "wellness_step", 0)
-        if state is None:
-            state = init_wellness_state(s)
-            step = 0
-
-        text = (transcript or "").strip()
-        text_l = text.lower()
-
-        def none_answer(t):
-            return t.strip().lower() in ("no", "none", "not really", "nah", "nope", "n", "nothing")
-
-        # Step 0: capture mood
-        if step == 0:
-            state["mood"] = text
-            setattr(s, "wellness_step", 1)
-            return "Thanks for sharing. What's your energy level today — would you say high, medium, or low?"
-
-        # Step 1: capture energy
-        if step == 1:
-            state["energy"] = text
-            setattr(s, "wellness_step", 2)
-            return "Got it. Is anything stressing you out right now? It's okay to say no if things feel manageable."
-
-        # Step 2: capture stress
-        if step == 2:
-            if none_answer(text):
-                state["stress"] = "none"
-            else:
-                state["stress"] = text
-            setattr(s, "wellness_step", 3)
-            return "Okay, I hear you. What are one to three things you'd like to accomplish today?"
-
-        # Step 3: capture goals and provide recap
-        if step == 3:
-            # Convert to list by splitting commas or "and"
-            parts = [p.strip() for p in text.replace(" and ", ",").split(",") if p.strip()]
-            if not parts:
-                # If user gives an empty answer, prompt gently
-                await session.say(
-                    "That's alright. Is there even one small thing you'd like to focus on today?",
-                    allow_interruptions=True,
-                )
-                setattr(s, "wellness_step", 3)
-                return None  # Wait for next transcription
-            
-            state["goals"] = parts[:3]  # limit to 3
-            
-            # Generate contextual summary based on their responses
-            mood_part = f"You're feeling {state['mood']}"
-            energy_part = f"with {state['energy']} energy"
-            
-            if state["stress"] != "none":
-                stress_part = f"and mentioned some stress around {state['stress']}"
-            else:
-                stress_part = "and things feel manageable stress-wise"
-            
-            goals_part = f"Your focus today: {', '.join(state['goals'])}"
-            
-            # Offer personalized, actionable suggestion based on their state
-            suggestion = generate_suggestion(state)
-            
-            recap = f"{mood_part} {energy_part} {stress_part}. {goals_part}. {suggestion}"
-            
-            state["summary"] = recap
-            state["finished_at"] = datetime.now().isoformat()
-            saved = save_entry(state)
-            setattr(s, "wellness_step", 4)
-            
-            confirmation = " Does this sound about right?"
-            return recap + confirmation
-
-        # Step 4: confirmation after recap
-        if step == 4:
-            # User has confirmed or responded to recap
-            setattr(s, "wellness_step", 5)
-            return "Great. I've saved this check-in. Remember, small steps add up. Feel free to come back anytime."
-
-        # Step 5: already finished
-        if step >= 5:
-            return "We've completed today's check-in. If you'd like to start a new one, just say 'new check-in'."
-
-        return "I didn't quite catch that. Could you say it again briefly?"
-
-    def generate_suggestion(state):
-        """Generate a personalized suggestion based on the user's current state."""
-        energy = state.get("energy", "").lower()
-        stress = state.get("stress", "none").lower()
-        num_goals = len(state.get("goals", []))
-        
-        suggestions = []
-        
-        # Energy-based suggestions
-        if "low" in energy or "tired" in energy:
-            suggestions.append("Since energy is low, maybe pick just one goal to focus on")
-        elif "high" in energy:
-            suggestions.append("Great energy today — ride that momentum")
-        
-        # Stress-based suggestions
-        if stress != "none" and stress != "":
-            suggestions.append("When stressed, try breaking tasks into 5-minute chunks")
-            suggestions.append("Consider a quick walk or breathing break between tasks")
-        
-        # Goal-based suggestions
-        if num_goals > 2:
-            suggestions.append("You've got several things on your plate — tackle them one at a time")
-        
-        # Default suggestions
-        default_suggestions = [
-            "Try starting with the easiest task to build momentum",
-            "Remember to take short breaks — even 5 minutes helps",
-            "One small step forward is still progress",
-        ]
-        
-        if suggestions:
-            return suggestions[0] + "."
-        else:
-            return default_suggestions[0] + "."
-
-    async def handle_transcription(event: UserInputTranscribedEvent):
-        """
-        The transcription handler schedules the step-driven process and handles
-        'new check-in' command to reset state.
-        """
-        if not getattr(event, "is_final", True):
-            return
-
-        user_text = getattr(event, "transcript", "").strip()
-        if not user_text:
-            return
-
-        logger.info(f"User said: {user_text}")
-
-        # Commands to restart the check-in
-        restart_commands = ["new check-in", "new checkin", "new check", "start over", "restart", "check in"]
-        if user_text.lower() in restart_commands:
-            init_wellness_state(session)
-            await session.say("Sure, let's start fresh. How are you feeling right now?", allow_interruptions=True)
-            return
-
-        # Handle view history command
-        if "history" in user_text.lower() or "past check" in user_text.lower():
-            past = load_log()
-            if len(past) > 1:
-                recent = past[-3:-1]  # Last 2-3 entries before current
-                summary = f"You've done {len(past)} check-ins. "
-                if recent:
-                    summary += f"Recently, you've been feeling {recent[-1].get('mood', 'varied')}. "
-                await session.say(summary, allow_interruptions=True)
-            else:
-                await session.say("This is your first check-in with me.", allow_interruptions=True)
-            return
-
-        # If no wellness_state, initialize and start the flow
-        if not hasattr(session, "wellness_state") or getattr(session, "wellness_state") is None:
-            init_wellness_state(session)
-            # process the user's first utterance as mood
-            reply = await process_wellness_turn(session, user_text)
-            if reply:
-                await session.say(reply, allow_interruptions=True)
-            return
-
-        # Otherwise continue the step flow
-        reply = await process_wellness_turn(session, user_text)
-        # process_wellness_turn may return None if it asked a clarifying question and expects next input
-        if reply:
-            await session.say(reply, allow_interruptions=True)
-
-    @session.on("user_input_transcribed")
-    def on_user_input_transcribed(event: UserInputTranscribedEvent):
-        try:
-            asyncio.create_task(handle_transcription(event))
-        except RuntimeError:
-            loop = None
-            try:
-                loop = asyncio.get_event_loop()
-            except Exception:
-                loop = None
-            if loop and loop.is_running():
-                loop.create_task(handle_transcription(event))
-            else:
-                asyncio.run(handle_transcription(event))
-
-    # Start the session with the wellness assistant
+    
+    # 3. Store session reference for tools to access
+    userdata.agent_session = session
+    
+    # 4. Start the session
     await session.start(
-        agent=WellnessAssistant(),
+        agent=ActiveRecallCoach(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC(),
+            noise_cancellation=noise_cancellation.BVC()
         ),
     )
 
-    # Initialize state and greet the user with context from previous check-ins
-    init_wellness_state(session)
-    past = load_log()
-    context = get_recent_context(past)
-    
-    if context and context["last_entry"]:
-        last = context["last_entry"]
-        last_time = last.get("timestamp", "")
-        
-        # More natural greeting with temporal context
-        greet = (
-            f"Welcome back! Last time you were feeling {last.get('mood', 'uncertain')} "
-            f"with {last.get('energy', 'moderate')} energy. How's today comparing?"
-        )
-    else:
-        greet = "Hi, I'm CalmCompanion. Let's do a quick check-in. How are you feeling today?"
-
-    await session.say(greet, allow_interruptions=True)
-
-    # connect to signalling (blocks until shutdown)
+    # 5. Connect to room (blocks until shutdown)
     await ctx.connect()
-
 
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))

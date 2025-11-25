@@ -1,20 +1,66 @@
 import { Button } from '@/components/livekit/button';
+import { Brain, BookOpen, MessageSquare, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 
-function WelcomeImage() {
+function AnimatedBrainIcon() {
   return (
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-fg0 mb-4 size-16"
-    >
-      <path
-        d="M15 24V40C15 40.7957 14.6839 41.5587 14.1213 42.1213C13.5587 42.6839 12.7956 43 12 43C11.2044 43 10.4413 42.6839 9.87868 42.1213C9.31607 41.5587 9 40.7957 9 40V24C9 23.2044 9.31607 22.4413 9.87868 21.8787C10.4413 21.3161 11.2044 21 12 21C12.7956 21 13.5587 21.3161 14.1213 21.8787C14.6839 22.4413 15 23.2044 15 24ZM22 5C21.2044 5 20.4413 5.31607 19.8787 5.87868C19.3161 6.44129 19 7.20435 19 8V56C19 56.7957 19.3161 57.5587 19.8787 58.1213C20.4413 58.6839 21.2044 59 22 59C22.7956 59 23.5587 58.6839 24.1213 58.1213C24.6839 57.5587 25 56.7957 25 56V8C25 7.20435 24.6839 6.44129 24.1213 5.87868C23.5587 5.31607 22.7956 5 22 5ZM32 13C31.2044 13 30.4413 13.3161 29.8787 13.8787C29.3161 14.4413 29 15.2044 29 16V48C29 48.7957 29.3161 49.5587 29.8787 50.1213C30.4413 50.6839 31.2044 51 32 51C32.7956 51 33.5587 50.6839 34.1213 50.1213C34.6839 49.5587 35 48.7957 35 48V16C35 15.2044 34.6839 14.4413 34.1213 13.8787C33.5587 13.3161 32.7956 13 32 13ZM42 21C41.2043 21 40.4413 21.3161 39.8787 21.8787C39.3161 22.4413 39 23.2044 39 24V40C39 40.7957 39.3161 41.5587 39.8787 42.1213C40.4413 42.6839 41.2043 43 42 43C42.7957 43 43.5587 42.6839 44.1213 42.1213C44.6839 41.5587 45 40.7957 45 40V24C45 23.2044 44.6839 22.4413 44.1213 21.8787C43.5587 21.3161 42.7957 21 42 21ZM52 17C51.2043 17 50.4413 17.3161 49.8787 17.8787C49.3161 18.4413 49 19.2044 49 20V44C49 44.7957 49.3161 45.5587 49.8787 46.1213C50.4413 46.6839 51.2043 47 52 47C52.7957 47 53.5587 46.6839 54.1213 46.1213C54.6839 45.5587 55 44.7957 55 44V20C55 19.2044 54.6839 18.4413 54.1213 17.8787C53.5587 17.3161 52.7957 17 52 17Z"
-        fill="currentColor"
-      />
-    </svg>
+    <div className="relative mb-8">
+      {/* Pulsing rings */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-32 h-32 bg-blue-500/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-24 h-24 bg-purple-500/20 rounded-full animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+      </div>
+      
+      {/* Main icon container */}
+      <div className="relative bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 rounded-3xl p-8 shadow-2xl transform hover:scale-110 transition-transform duration-500">
+        <Brain className="w-16 h-16 text-white" strokeWidth={1.5} />
+        
+        {/* Sparkle effects */}
+        <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-yellow-400 animate-pulse" />
+        <Sparkles className="absolute -bottom-2 -left-2 w-5 h-5 text-blue-300 animate-pulse" style={{ animationDelay: '0.5s' }} />
+      </div>
+    </div>
+  );
+}
+
+function ModeCard({ icon: Icon, title, voice, description, color }: { 
+  icon: any, 
+  title: string, 
+  voice: string, 
+  description: string,
+  color: string 
+}) {
+  const colorClasses = {
+    blue: "from-blue-500/10 to-blue-600/10 border-blue-200 dark:border-blue-800 hover:from-blue-500/20 hover:to-blue-600/20",
+    purple: "from-purple-500/10 to-purple-600/10 border-purple-200 dark:border-purple-800 hover:from-purple-500/20 hover:to-purple-600/20",
+    pink: "from-pink-500/10 to-pink-600/10 border-pink-200 dark:border-pink-800 hover:from-pink-500/20 hover:to-pink-600/20"
+  };
+
+  const iconColorClasses = {
+    blue: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
+    purple: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400",
+    pink: "bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"
+  };
+
+  return (
+    <div className={`group relative bg-gradient-to-br ${colorClasses[color]} rounded-2xl p-6 border-2 transition-all duration-300 hover:scale-105 hover:shadow-xl`}>
+      <div className={`${iconColorClasses[color]} rounded-xl p-3 w-fit mb-4 shadow-sm`}>
+        <Icon className="w-6 h-6" strokeWidth={2} />
+      </div>
+      
+      <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 mb-1">
+        {title}
+      </h3>
+      
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">
+        Voice: {voice}
+      </p>
+      
+      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+        {description}
+      </p>
+    </div>
   );
 }
 
@@ -26,34 +72,139 @@ interface WelcomeViewProps {
 export const WelcomeView = ({
   startButtonText,
   onStartCall,
-  ref,
+  ...props
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
   return (
-    <div ref={ref}>
-      <section className="bg-background flex flex-col items-center justify-center text-center">
-        <WelcomeImage />
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" {...props}>
+      <section className="container mx-auto px-4 py-12 flex flex-col items-center text-center">
+        {/* Hero Icon */}
+        <AnimatedBrainIcon />
 
-        <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Chat live with your voice AI agent
+        {/* Badge */}
+        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-full text-sm font-semibold mb-6 border border-blue-200 dark:border-blue-800">
+          <Sparkles className="w-4 h-4" />
+          <span>Active Recall Learning</span>
+        </div>
+
+        {/* Main Headline */}
+        <h1 className="text-4xl md:text-6xl font-extrabold mb-4 max-w-4xl">
+          <span className="bg-gradient-to-r from-slate-900 via-blue-800 to-purple-900 dark:from-slate-100 dark:via-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
+            Learn by Teaching
+          </span>
+        </h1>
+
+        {/* Subheadline */}
+        <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mb-8 leading-relaxed">
+          Master programming concepts through three AI-powered learning modes. Each mode features a specialized voice coach to guide your learning journey.
         </p>
 
-        <Button variant="primary" size="lg" onClick={onStartCall} className="mt-6 w-64 font-mono">
-          {startButtonText}
+        {/* CTA Button */}
+        <Button 
+          onClick={onStartCall}
+          className="group relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-10 py-7 text-lg font-bold rounded-2xl shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-105 mb-12"
+        >
+          <span className="flex items-center gap-3">
+            {startButtonText}
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </span>
+          
+          {/* Animated shine */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
+
+        {/* Three Learning Modes */}
+        <div className="w-full max-w-5xl mb-12">
+          <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-8">
+            Three Ways to Master Any Concept
+          </h2>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            <ModeCard
+              icon={BookOpen}
+              title="Learn Mode"
+              voice="Matthew"
+              description="Get clear explanations using the Feynman Technique with concrete examples and analogies"
+              color="blue"
+            />
+            
+            <ModeCard
+              icon={Brain}
+              title="Quiz Mode"
+              voice="Alicia"
+              description="Test your understanding with thoughtful questions and receive constructive feedback"
+              color="purple"
+            />
+            
+            <ModeCard
+              icon={MessageSquare}
+              title="Teach-Back Mode"
+              voice="Ken"
+              description="Solidify your knowledge by explaining concepts while receiving detailed evaluation"
+              color="pink"
+            />
+          </div>
+        </div>
+
+        {/* Features List */}
+        <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-lg border border-slate-200 dark:border-slate-800 mb-12">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6 text-left">
+            What You'll Learn
+          </h3>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              'Variables & Data Types',
+              'Loops & Iteration',
+              'Functions & Reusability',
+              'Conditionals & Logic',
+              'And more concepts...'
+            ].map((feature, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-left">
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <span className="text-slate-700 dark:text-slate-300">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-8 max-w-2xl w-full mb-8">
+          <div className="text-center">
+            <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent mb-2">3</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">Learning Modes</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent mb-2">5+</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">Core Concepts</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-pink-400 bg-clip-text text-transparent mb-2">∞</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">Practice Sessions</div>
+          </div>
+        </div>
       </section>
 
-      <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">
-        <p className="text-muted-foreground max-w-prose pt-1 text-xs leading-5 font-normal text-pretty md:text-sm">
-          Need help getting set up? Check out the{' '}
+      {/* Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 py-4 z-40">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-400 px-4">
+          Need help? Check out the{' '}
           <a
             target="_blank"
             rel="noopener noreferrer"
             href="https://docs.livekit.io/agents/start/voice-ai/"
-            className="underline"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold underline underline-offset-4 transition-colors"
           >
             Voice AI quickstart
           </a>
-          .
+          {' '}or explore{' '}
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/livekit-examples/python-agents-examples"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold underline underline-offset-4 transition-colors"
+          >
+            example agents
+          </a>
         </p>
       </div>
     </div>
