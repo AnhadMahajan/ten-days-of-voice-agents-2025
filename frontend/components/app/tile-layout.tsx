@@ -10,7 +10,6 @@ import {
   useVoiceAssistant,
 } from '@livekit/components-react';
 import { cn } from '@/lib/utils';
-import { Briefcase, Phone, TrendingUp } from 'lucide-react';
 
 const MotionContainer = motion.create('div');
 
@@ -107,7 +106,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
           >
             <AnimatePresence mode="popLayout">
               {!isAvatar && (
-                // Audio Agent - Enhanced SDR Version
+                // Audio Agent
                 <MotionContainer
                   key="agent"
                   layoutId="agent"
@@ -124,78 +123,30 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     delay: animationDelay,
                   }}
                   className={cn(
-                    'relative aspect-square h-[90px] rounded-2xl border-2 transition-all duration-300',
-                    chatOpen 
-                      ? 'border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-blue-950/50 dark:to-emerald-950/50 drop-shadow-xl' 
-                      : 'border-blue-300 dark:border-blue-700 bg-gradient-to-br from-white to-blue-50 dark:from-slate-900 dark:to-blue-950/50 drop-shadow-2xl'
+                    'bg-background aspect-square h-[90px] rounded-md border border-transparent transition-[border,drop-shadow]',
+                    chatOpen && 'border-input/50 drop-shadow-lg/10 delay-200'
                   )}
                 >
-                  {/* Background icon when not speaking */}
-                  {agentState !== 'speaking' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-full blur-md opacity-30 animate-pulse" />
-                        <div className="relative bg-gradient-to-br from-blue-600 to-emerald-600 rounded-full p-3">
-                          <Briefcase className="w-8 h-8 text-white" strokeWidth={2} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Visualizer overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <BarVisualizer
-                      barCount={5}
-                      state={agentState}
-                      options={{ minHeight: 5 }}
-                      trackRef={agentAudioTrack}
-                      className={cn('flex h-full items-center justify-center gap-1.5')}
-                    >
-                      <span
-                        className={cn([
-                          'min-h-3 w-3 rounded-full',
-                          'origin-center transition-all duration-300 ease-out',
-                          'data-[lk-highlighted=true]:bg-gradient-to-t data-[lk-highlighted=true]:from-blue-500 data-[lk-highlighted=true]:to-emerald-500',
-                          'data-[lk-highlighted=true]:shadow-lg data-[lk-highlighted=true]:shadow-blue-500/50',
-                          'data-[lk-highlighted=false]:bg-slate-300 dark:data-[lk-highlighted=false]:bg-slate-700',
-                          'data-[lk-muted=true]:bg-slate-200 dark:data-[lk-muted=true]:bg-slate-800',
-                        ])}
-                      />
-                    </BarVisualizer>
-                  </div>
-
-                  {/* Decorative rings when speaking */}
-                  {agentState === 'speaking' && (
-                    <>
-                      <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/50 animate-ping" style={{ animationDuration: '2s' }} />
-                      <div className="absolute inset-0 rounded-2xl border-2 border-emerald-400/50 animate-ping" style={{ animationDuration: '2.5s', animationDelay: '0.3s' }} />
-                    </>
-                  )}
-
-                  {/* Status badge */}
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10">
-                    <div className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-lg backdrop-blur-sm border transition-all duration-300',
-                      agentState === 'speaking' 
-                        ? 'bg-emerald-100/90 dark:bg-emerald-900/90 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                        : agentState === 'listening'
-                        ? 'bg-blue-100/90 dark:bg-blue-900/90 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                        : 'bg-slate-100/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
-                    )}>
-                      <div className={cn(
-                        'w-1.5 h-1.5 rounded-full',
-                        agentState === 'speaking' && 'bg-emerald-500 animate-pulse',
-                        agentState === 'listening' && 'bg-blue-500 animate-pulse',
-                        agentState === 'thinking' && 'bg-amber-500 animate-pulse',
-                      )} />
-                      <span className="capitalize">{agentState}</span>
-                    </div>
-                  </div>
+                  <BarVisualizer
+                    barCount={5}
+                    state={agentState}
+                    options={{ minHeight: 5 }}
+                    trackRef={agentAudioTrack}
+                    className={cn('flex h-full items-center justify-center gap-1')}
+                  >
+                    <span
+                      className={cn([
+                        'bg-muted min-h-2.5 w-2.5 rounded-full',
+                        'origin-center transition-colors duration-250 ease-linear',
+                        'data-[lk-highlighted=true]:bg-foreground data-[lk-muted=true]:bg-muted',
+                      ])}
+                    />
+                  </BarVisualizer>
                 </MotionContainer>
               )}
 
               {isAvatar && (
-                // Avatar Agent - Enhanced with gradient border
+                // Avatar Agent
                 <MotionContainer
                   key="avatar"
                   layoutId="avatar"
@@ -210,7 +161,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     maskImage:
                       'radial-gradient(circle, rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 500px, transparent 500px)',
                     filter: 'blur(0px)',
-                    borderRadius: chatOpen ? 12 : 16,
+                    borderRadius: chatOpen ? 6 : 12,
                   }}
                   transition={{
                     ...ANIMATION_TRANSITION,
@@ -223,8 +174,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     },
                   }}
                   className={cn(
-                    'relative overflow-hidden bg-black drop-shadow-2xl',
-                    'ring-2 ring-blue-400/50 dark:ring-blue-600/50',
+                    'overflow-hidden bg-black drop-shadow-xl/80',
                     chatOpen ? 'h-[90px]' : 'h-auto w-full'
                   )}
                 >
@@ -234,9 +184,6 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     trackRef={agentVideoTrack}
                     className={cn(chatOpen && 'size-[90px] object-cover')}
                   />
-                  
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
                 </MotionContainer>
               )}
             </AnimatePresence>
@@ -249,7 +196,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
               !chatOpen && classNames.secondTileChatClosed,
             ])}
           >
-            {/* Camera & Screen Share - Enhanced styling */}
+            {/* Camera & Screen Share */}
             <AnimatePresence>
               {((cameraTrack && isCameraEnabled) || (screenShareTrack && isScreenShareEnabled)) && (
                 <MotionContainer
@@ -272,23 +219,14 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     ...ANIMATION_TRANSITION,
                     delay: animationDelay,
                   }}
-                  className="drop-shadow-2xl"
+                  className="drop-shadow-lg/20"
                 >
-                  <div className="relative">
-                    <VideoTrack
-                      trackRef={cameraTrack || screenShareTrack}
-                      width={(cameraTrack || screenShareTrack)?.publication.dimensions?.width ?? 0}
-                      height={(cameraTrack || screenShareTrack)?.publication.dimensions?.height ?? 0}
-                      className="bg-slate-900 dark:bg-slate-950 aspect-square w-[90px] rounded-2xl object-cover ring-2 ring-slate-300 dark:ring-slate-700"
-                    />
-                    
-                    {/* Label */}
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-lg backdrop-blur-sm border bg-slate-100/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700">
-                        {screenShareTrack ? 'Screen' : 'You'}
-                      </div>
-                    </div>
-                  </div>
+                  <VideoTrack
+                    trackRef={cameraTrack || screenShareTrack}
+                    width={(cameraTrack || screenShareTrack)?.publication.dimensions?.width ?? 0}
+                    height={(cameraTrack || screenShareTrack)?.publication.dimensions?.height ?? 0}
+                    className="bg-muted aspect-square w-[90px] rounded-md object-cover"
+                  />
                 </MotionContainer>
               )}
             </AnimatePresence>

@@ -66,79 +66,34 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   return (
     <div
       className={cn(
-        'text-foreground bg-white dark:bg-slate-900 flex w-full flex-row justify-end divide-x divide-slate-200 dark:divide-slate-700 overflow-hidden rounded-full border-2 border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300',
+        'text-foreground bg-background flex w-full flex-row justify-end divide-x overflow-hidden rounded-full border',
         className
       )}
     >
       <span className="sr-only">Color scheme toggle</span>
-      
-      {/* Dark Mode Button */}
       <button
         type="button"
         onClick={() => handleThemeChange('dark')}
-        className={cn(
-          'cursor-pointer p-2 pl-2.5 transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-800',
-          theme === 'dark' && 'bg-slate-100 dark:bg-slate-800'
-        )}
-        aria-label="Enable dark color scheme"
+        className="cursor-pointer p-1 pl-1.5"
       >
         <span className="sr-only">Enable dark color scheme</span>
-        <MoonIcon 
-          size={18} 
-          weight="bold" 
-          className={cn(
-            'transition-all duration-300',
-            theme === 'dark' 
-              ? 'text-blue-600 dark:text-blue-400 scale-110' 
-              : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
-          )} 
-        />
+        <MoonIcon size={16} weight="bold" className={cn(theme !== 'dark' && 'opacity-25')} />
       </button>
-
-      {/* Light Mode Button */}
       <button
         type="button"
         onClick={() => handleThemeChange('light')}
-        className={cn(
-          'cursor-pointer px-2.5 py-2 transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-800',
-          theme === 'light' && 'bg-slate-100 dark:bg-slate-800'
-        )}
-        aria-label="Enable light color scheme"
+        className="cursor-pointer px-1.5 py-1"
       >
         <span className="sr-only">Enable light color scheme</span>
-        <SunIcon 
-          size={18} 
-          weight="bold" 
-          className={cn(
-            'transition-all duration-300',
-            theme === 'light' 
-              ? 'text-amber-500 scale-110' 
-              : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
-          )} 
-        />
+        <SunIcon size={16} weight="bold" className={cn(theme !== 'light' && 'opacity-25')} />
       </button>
-
-      {/* System Mode Button */}
       <button
         type="button"
         onClick={() => handleThemeChange('system')}
-        className={cn(
-          'cursor-pointer p-2 pr-2.5 transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-800',
-          theme === 'system' && 'bg-slate-100 dark:bg-slate-800'
-        )}
-        aria-label="Enable system color scheme"
+        className="cursor-pointer p-1 pr-1.5"
       >
         <span className="sr-only">Enable system color scheme</span>
-        <MonitorIcon 
-          size={18} 
-          weight="bold" 
-          className={cn(
-            'transition-all duration-300',
-            theme === 'system' 
-              ? 'text-emerald-600 dark:text-emerald-400 scale-110' 
-              : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
-          )} 
-        />
+        <MonitorIcon size={16} weight="bold" className={cn(theme !== 'system' && 'opacity-25')} />
       </button>
     </div>
   );
