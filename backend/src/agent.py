@@ -1,8 +1,8 @@
 import logging
-import sqlite3
+import json
 import os
-from typing import Annotated, Optional
-from dataclasses import dataclass
+from typing import Annotated, Optional, List, Dict
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -25,456 +25,639 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
-# Bank Configuration
-BANK_NAME = "SecureBank India"
-DATABASE_FILE = "fraud_cases.db"
+# Store Configuration
+STORE_NAME = "QuickMart Express"
+CATALOG_FILE = "catalog.json"
+ORDERS_DIR = "orders"
 
-# Sample Fraud Cases Data
-SAMPLE_FRAUD_CASES = [
-    {
-        "userName": "luffy",
-        "securityIdentifier": "12345",
-        "cardEnding": "4242",
-        "case": "pending_review",
-        "transactionAmount": "₹45,999",
-        "transactionName": "ABC Electronics Ltd",
-        "transactionTime": "2025-11-27 14:23:15",
-        "transactionCategory": "e-commerce",
-        "transactionSource": "alibaba.com",
-        "transactionLocation": "Shenzhen, China",
-        "securityQuestion": "What is your mother's maiden name?",
-        "securityAnswer": "mahajan",
-        "outcomeNote": ""
+# Sample Catalog Data
+SAMPLE_CATALOG = {
+    "categories": {
+        "groceries": [
+            {
+                "id": "g001",
+                "name": "Whole Wheat Bread",
+                "category": "groceries",
+                "price": 45,
+                "brand": "Nature's Own",
+                "size": "500g",
+                "tags": ["vegan", "healthy"]
+            },
+            {
+                "id": "g002",
+                "name": "White Bread",
+                "category": "groceries",
+                "price": 40,
+                "brand": "Britannia",
+                "size": "450g",
+                "tags": ["vegetarian"]
+            },
+            {
+                "id": "g003",
+                "name": "Milk",
+                "category": "groceries",
+                "price": 60,
+                "brand": "Amul",
+                "size": "1L",
+                "tags": ["dairy", "fresh"]
+            },
+            {
+                "id": "g004",
+                "name": "Eggs",
+                "category": "groceries",
+                "price": 80,
+                "brand": "Farm Fresh",
+                "size": "12 pack",
+                "tags": ["protein", "fresh"]
+            },
+            {
+                "id": "g005",
+                "name": "Peanut Butter",
+                "category": "groceries",
+                "price": 180,
+                "brand": "Sundrop",
+                "size": "400g",
+                "tags": ["protein", "spread"]
+            },
+            {
+                "id": "g006",
+                "name": "Pasta",
+                "category": "groceries",
+                "price": 120,
+                "brand": "Del Monte",
+                "size": "500g",
+                "tags": ["italian", "vegan"]
+            },
+            {
+                "id": "g007",
+                "name": "Pasta Sauce",
+                "category": "groceries",
+                "price": 150,
+                "brand": "Maggi",
+                "size": "350g",
+                "tags": ["italian", "sauce"]
+            },
+            {
+                "id": "g008",
+                "name": "Rice",
+                "category": "groceries",
+                "price": 250,
+                "brand": "India Gate",
+                "size": "5kg",
+                "tags": ["staple", "vegan"]
+            },
+            {
+                "id": "g009",
+                "name": "Cheese",
+                "category": "groceries",
+                "price": 200,
+                "brand": "Amul",
+                "size": "200g",
+                "tags": ["dairy", "cheese"]
+            }
+        ],
+        "snacks": [
+            {
+                "id": "s001",
+                "name": "Potato Chips",
+                "category": "snacks",
+                "price": 20,
+                "brand": "Lays",
+                "size": "50g",
+                "tags": ["snack", "vegan"]
+            },
+            {
+                "id": "s002",
+                "name": "Cookies",
+                "category": "snacks",
+                "price": 30,
+                "brand": "Parle-G",
+                "size": "100g",
+                "tags": ["snack", "vegetarian"]
+            },
+            {
+                "id": "s003",
+                "name": "Chocolate",
+                "category": "snacks",
+                "price": 40,
+                "brand": "Dairy Milk",
+                "size": "50g",
+                "tags": ["snack", "sweet"]
+            },
+            {
+                "id": "s004",
+                "name": "Namkeen Mix",
+                "category": "snacks",
+                "price": 50,
+                "brand": "Haldiram's",
+                "size": "200g",
+                "tags": ["snack", "spicy", "vegan"]
+            }
+        ],
+        "prepared_food": [
+            {
+                "id": "p001",
+                "name": "Margherita Pizza",
+                "category": "prepared_food",
+                "price": 250,
+                "brand": "QuickMart Kitchen",
+                "size": "Medium",
+                "tags": ["vegetarian", "italian"]
+            },
+            {
+                "id": "p002",
+                "name": "Veggie Sandwich",
+                "category": "prepared_food",
+                "price": 80,
+                "brand": "QuickMart Kitchen",
+                "size": "Regular",
+                "tags": ["vegetarian", "healthy"]
+            },
+            {
+                "id": "p003",
+                "name": "Chicken Biryani",
+                "category": "prepared_food",
+                "price": 180,
+                "brand": "QuickMart Kitchen",
+                "size": "1 serving",
+                "tags": ["non-vegetarian", "indian"]
+            },
+            {
+                "id": "p004",
+                "name": "Paneer Wrap",
+                "category": "prepared_food",
+                "price": 120,
+                "brand": "QuickMart Kitchen",
+                "size": "Regular",
+                "tags": ["vegetarian", "indian"]
+            }
+        ],
+        "beverages": [
+            {
+                "id": "b001",
+                "name": "Orange Juice",
+                "category": "beverages",
+                "price": 80,
+                "brand": "Tropicana",
+                "size": "1L",
+                "tags": ["juice", "fresh"]
+            },
+            {
+                "id": "b002",
+                "name": "Coke",
+                "category": "beverages",
+                "price": 40,
+                "brand": "Coca-Cola",
+                "size": "500ml",
+                "tags": ["soft drink", "cold"]
+            }
+        ]
     },
-    {
-        "userName": "Priya Patel",
-        "securityIdentifier": "67890",
-        "cardEnding": "8888",
-        "case": "pending_review",
-        "transactionAmount": "₹1,25,000",
-        "transactionName": "Luxury Fashion Store",
-        "transactionTime": "2025-11-27 03:15:42",
-        "transactionCategory": "retail",
-        "transactionSource": "fashionlux.net",
-        "transactionLocation": "Dubai, UAE",
-        "securityQuestion": "What city were you born in?",
-        "securityAnswer": "Mumbai",
-        "outcomeNote": ""
-    },
-    {
-        "userName": "Amit Verma",
-        "securityIdentifier": "54321",
-        "cardEnding": "7777",
-        "case": "pending_review",
-        "transactionAmount": "₹89,500",
-        "transactionName": "Tech Gadgets International",
-        "transactionTime": "2025-11-27 09:45:20",
-        "transactionCategory": "e-commerce",
-        "transactionSource": "techgadgets.co",
-        "transactionLocation": "Singapore",
-        "securityQuestion": "What is your favorite color?",
-        "securityAnswer": "Blue",
-        "outcomeNote": ""
+    "recipes": {
+        "peanut butter sandwich": ["g001", "g005"],
+        "pb sandwich": ["g001", "g005"],
+        "sandwich": ["g002", "g005"],
+        "pasta": ["g006", "g007"],
+        "pasta for two": ["g006", "g007"],
+        "breakfast": ["g002", "g003", "g004"],
+        "eggs and toast": ["g002", "g004"],
+        "pizza night": ["p001", "b002"]
     }
-]
+}
 
-def init_database():
-    """🗄️ Initialize SQLite database with fraud cases table"""
-    db_path = os.path.join(os.path.dirname(__file__), DATABASE_FILE)
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+def init_catalog():
+    """Initialize catalog JSON file"""
+    if not os.path.exists(CATALOG_FILE):
+        with open(CATALOG_FILE, 'w') as f:
+            json.dump(SAMPLE_CATALOG, f, indent=2)
+        print(f"✅ Catalog created: {CATALOG_FILE}")
+    else:
+        print(f"✅ Catalog already exists: {CATALOG_FILE}")
     
-    # Create fraud_cases table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS fraud_cases (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userName TEXT NOT NULL,
-            securityIdentifier TEXT NOT NULL,
-            cardEnding TEXT NOT NULL,
-            caseStatus TEXT NOT NULL,
-            transactionAmount TEXT NOT NULL,
-            transactionName TEXT NOT NULL,
-            transactionTime TEXT NOT NULL,
-            transactionCategory TEXT NOT NULL,
-            transactionSource TEXT NOT NULL,
-            transactionLocation TEXT NOT NULL,
-            securityQuestion TEXT NOT NULL,
-            securityAnswer TEXT NOT NULL,
-            outcomeNote TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # Check if table is empty
-    cursor.execute("SELECT COUNT(*) FROM fraud_cases")
-    count = cursor.fetchone()[0]
-    
-    if count == 0:
-        print("📊 Populating database with sample fraud cases...")
-        for case in SAMPLE_FRAUD_CASES:
-            cursor.execute("""
-                INSERT INTO fraud_cases 
-                (userName, securityIdentifier, cardEnding, caseStatus, transactionAmount, 
-                 transactionName, transactionTime, transactionCategory, transactionSource, 
-                 transactionLocation, securityQuestion, securityAnswer, outcomeNote)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                case["userName"],
-                case["securityIdentifier"],
-                case["cardEnding"],
-                case["case"],
-                case["transactionAmount"],
-                case["transactionName"],
-                case["transactionTime"],
-                case["transactionCategory"],
-                case["transactionSource"],
-                case["transactionLocation"],
-                case["securityQuestion"],
-                case["securityAnswer"],
-                case["outcomeNote"]
-            ))
-        conn.commit()
-        print("✅ Sample fraud cases inserted successfully")
-    
-    conn.close()
-    print(f"✅ Database initialized: {db_path}")
-    return db_path
+    # Create orders directory
+    if not os.path.exists(ORDERS_DIR):
+        os.makedirs(ORDERS_DIR)
+        print(f"✅ Orders directory created: {ORDERS_DIR}")
 
-def get_db_connection():
-    """Get database connection"""
-    db_path = os.path.join(os.path.dirname(__file__), DATABASE_FILE)
-    return sqlite3.connect(db_path)
+def load_catalog():
+    """Load catalog from JSON file"""
+    with open(CATALOG_FILE, 'r') as f:
+        return json.load(f)
 
 @dataclass
-class FraudCaseData:
-    """🚨 Stores current fraud case information"""
-    id: Optional[int] = None
-    userName: Optional[str] = None
-    securityIdentifier: Optional[str] = None
-    cardEnding: Optional[str] = None
-    case: Optional[str] = None
-    transactionAmount: Optional[str] = None
-    transactionName: Optional[str] = None
-    transactionTime: Optional[str] = None
-    transactionCategory: Optional[str] = None
-    transactionSource: Optional[str] = None
-    transactionLocation: Optional[str] = None
-    securityQuestion: Optional[str] = None
-    securityAnswer: Optional[str] = None
-    outcomeNote: Optional[str] = None
-    verification_passed: bool = False
-    case_loaded: bool = False
+class CartItem:
+    """Represents an item in the shopping cart"""
+    item_id: str
+    name: str
+    price: float
+    quantity: int
+    brand: str
+    size: str
+    notes: str = ""
+
+@dataclass
+class ShoppingCart:
+    """Shopping cart state"""
+    items: List[CartItem] = field(default_factory=list)
+    customer_name: Optional[str] = None
+    customer_address: Optional[str] = None
 
 @dataclass
 class Userdata:
     """User session data"""
-    fraud_case: FraudCaseData
+    cart: ShoppingCart
+    catalog: Dict
     agent_session: Optional[AgentSession] = None
-    conversation_stage: str = "greeting"
 
 @function_tool
-async def load_fraud_case_for_user(
+async def search_items(
     ctx: RunContext[Userdata],
-    user_name: Annotated[str, Field(description="The name provided by the user")]
+    search_term: Annotated[str, Field(description="Item name, category, or tag to search for")]
 ) -> str:
-    """🔍 Loads the fraud case for the specified user from the database."""
+    """🔍 Search for items in the catalog by name, category, or tags."""
     
-    fraud_case = ctx.userdata.fraud_case
-    print(f"🔍 LOADING FRAUD CASE FOR: {user_name}")
+    catalog = ctx.userdata.catalog
+    search_term_lower = search_term.lower()
+    results = []
     
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Search for user (case-insensitive)
-        cursor.execute("""
-            SELECT id, userName, securityIdentifier, cardEnding, caseStatus, 
-                   transactionAmount, transactionName, transactionTime, 
-                   transactionCategory, transactionSource, transactionLocation, 
-                   securityQuestion, securityAnswer, outcomeNote
-            FROM fraud_cases 
-            WHERE LOWER(userName) = LOWER(?)
-            AND caseStatus = 'pending_review'
-            LIMIT 1
-        """, (user_name,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            # Load all fields into fraud_case
-            fraud_case.id = row[0]
-            fraud_case.userName = row[1]
-            fraud_case.securityIdentifier = row[2]
-            fraud_case.cardEnding = row[3]
-            fraud_case.case = row[4]
-            fraud_case.transactionAmount = row[5]
-            fraud_case.transactionName = row[6]
-            fraud_case.transactionTime = row[7]
-            fraud_case.transactionCategory = row[8]
-            fraud_case.transactionSource = row[9]
-            fraud_case.transactionLocation = row[10]
-            fraud_case.securityQuestion = row[11]
-            fraud_case.securityAnswer = row[12]
-            fraud_case.outcomeNote = row[13] or ""
-            fraud_case.case_loaded = True
-            
-            print(f"✅ Fraud case loaded for {fraud_case.userName} (ID: {fraud_case.id})")
-            return f"Case loaded successfully for {fraud_case.userName}. Card ending in {fraud_case.cardEnding}."
-        else:
-            print(f"❌ No pending fraud case found for: {user_name}")
-            return f"I'm sorry, I don't have any pending fraud alerts for the name {user_name}. Could you please verify the name?"
-            
-    except Exception as e:
-        print(f"❌ Database error: {e}")
-        return "I'm experiencing a technical issue accessing your case. Please try again."
+    # Search through all categories
+    for category, items in catalog["categories"].items():
+        for item in items:
+            # Check if search term matches name, category, or tags
+            if (search_term_lower in item["name"].lower() or 
+                search_term_lower in item["category"].lower() or
+                any(search_term_lower in tag.lower() for tag in item.get("tags", []))):
+                results.append(item)
+    
+    if not results:
+        return f"Sorry, I couldn't find any items matching '{search_term}'. Could you try a different search term?"
+    
+    # Format results
+    response = f"I found {len(results)} item(s) matching '{search_term}':\n\n"
+    for item in results[:5]:  # Limit to 5 results
+        response += f"- {item['name']} ({item['brand']}, {item['size']}) - ₹{item['price']}\n"
+    
+    if len(results) > 5:
+        response += f"\n...and {len(results) - 5} more items. Would you like to see more?"
+    
+    return response
 
 @function_tool
-async def verify_customer_identity(
+async def add_to_cart(
     ctx: RunContext[Userdata],
-    security_answer: Annotated[str, Field(description="The answer provided by the user to the security question")]
+    item_name: Annotated[str, Field(description="Name of the item to add")],
+    quantity: Annotated[int, Field(description="Quantity of the item", default=1)] = 1,
+    notes: Annotated[Optional[str], Field(description="Optional notes like 'whole wheat' or 'large size'", default="")] = ""
 ) -> str:
-    """🔐 Verifies the customer's identity using their security answer."""
+    """🛒 Add an item to the shopping cart."""
     
-    fraud_case = ctx.userdata.fraud_case
+    catalog = ctx.userdata.catalog
+    cart = ctx.userdata.cart
+    item_name_lower = item_name.lower()
     
-    if not fraud_case.case_loaded:
-        return "I need to load your case first. Can you please provide your name?"
+    # Search for the item
+    found_item = None
+    for category, items in catalog["categories"].items():
+        for item in items:
+            if item_name_lower in item["name"].lower():
+                # If notes specify preference, try to match
+                if notes:
+                    if notes.lower() in item["name"].lower() or notes.lower() in item.get("brand", "").lower():
+                        found_item = item
+                        break
+                # Otherwise take first match
+                if not found_item:
+                    found_item = item
+        if found_item:
+            break
     
-    print(f"🔐 VERIFYING IDENTITY: Provided answer: {security_answer}")
+    if not found_item:
+        return f"Sorry, I couldn't find '{item_name}' in our catalog. Would you like me to search for similar items?"
     
-    # Check if answer matches (case-insensitive)
-    if security_answer.lower().strip() == fraud_case.securityAnswer.lower().strip():
-        fraud_case.verification_passed = True
-        print("✅ Verification PASSED")
-        return "Thank you for verifying your identity. I can now proceed with discussing the suspicious transaction."
+    # Check if item already in cart
+    for cart_item in cart.items:
+        if cart_item.item_id == found_item["id"]:
+            cart_item.quantity += quantity
+            return f"Updated! {found_item['name']} quantity is now {cart_item.quantity} in your cart. (₹{found_item['price']} each)"
+    
+    # Add new item to cart
+    cart_item = CartItem(
+        item_id=found_item["id"],
+        name=found_item["name"],
+        price=found_item["price"],
+        quantity=quantity,
+        brand=found_item["brand"],
+        size=found_item["size"],
+        notes=notes or ""
+    )
+    cart.items.append(cart_item)
+    
+    return f"Added {quantity} x {found_item['name']} ({found_item['brand']}, {found_item['size']}) to your cart at ₹{found_item['price']} each."
+
+@function_tool
+async def add_recipe_ingredients(
+    ctx: RunContext[Userdata],
+    recipe_name: Annotated[str, Field(description="Name of the recipe/dish (e.g., 'peanut butter sandwich', 'pasta')")]
+) -> str:
+    """🍳 Add all ingredients needed for a specific recipe or meal."""
+    
+    catalog = ctx.userdata.catalog
+    cart = ctx.userdata.cart
+    recipe_name_lower = recipe_name.lower()
+    
+    # Find matching recipe
+    recipe_items = None
+    matched_recipe = None
+    for recipe, item_ids in catalog["recipes"].items():
+        if recipe_name_lower in recipe or recipe in recipe_name_lower:
+            recipe_items = item_ids
+            matched_recipe = recipe
+            break
+    
+    if not recipe_items:
+        return f"I don't have a preset recipe for '{recipe_name}'. Would you like me to search for individual items instead?"
+    
+    # Get all items for the recipe
+    added_items = []
+    for item_id in recipe_items:
+        for category, items in catalog["categories"].items():
+            for item in items:
+                if item["id"] == item_id:
+                    # Check if already in cart
+                    found_in_cart = False
+                    for cart_item in cart.items:
+                        if cart_item.item_id == item_id:
+                            cart_item.quantity += 1
+                            found_in_cart = True
+                            break
+                    
+                    if not found_in_cart:
+                        cart_item = CartItem(
+                            item_id=item["id"],
+                            name=item["name"],
+                            price=item["price"],
+                            quantity=1,
+                            brand=item["brand"],
+                            size=item["size"],
+                            notes=f"For {matched_recipe}"
+                        )
+                        cart.items.append(cart_item)
+                    
+                    added_items.append(item["name"])
+                    break
+    
+    if added_items:
+        items_list = ", ".join(added_items)
+        return f"Perfect! I've added ingredients for {matched_recipe}: {items_list}. Anything else you need?"
     else:
-        fraud_case.verification_passed = False
-        print("❌ Verification FAILED")
-        return "I'm sorry, but that answer doesn't match our records. For your security, I cannot proceed with this call. Please contact our customer service number for assistance."
+        return "There was an issue adding the ingredients. Please try again."
 
 @function_tool
-async def mark_transaction_status(
-    ctx: RunContext[Userdata],
-    user_confirmed: Annotated[bool, Field(description="True if user confirmed they made the transaction, False if they deny it")],
-    additional_notes: Annotated[str, Field(description="Any additional context or notes from the conversation")] = ""
-) -> str:
-    """✅ Marks the fraud case as safe or fraudulent based on customer response."""
-    
-    fraud_case = ctx.userdata.fraud_case
-    
-    if not fraud_case.verification_passed:
-        return "I cannot update the case status without proper verification."
-    
-    if not fraud_case.id:
-        return "Case ID not found. Cannot update status."
-    
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        if user_confirmed:
-            new_status = "confirmed_safe"
-            outcome_note = f"Customer confirmed the transaction as legitimate. {additional_notes}".strip()
-            
-            cursor.execute("""
-                UPDATE fraud_cases 
-                SET caseStatus = ?, outcomeNote = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (new_status, outcome_note, fraud_case.id))
-            
-            conn.commit()
-            conn.close()
-            
-            fraud_case.case = new_status
-            fraud_case.outcomeNote = outcome_note
-            
-            print(f"✅ Case ID {fraud_case.id} marked as SAFE for {fraud_case.userName}")
-            
-            return f"""Perfect! I've marked this transaction as legitimate in our system. 
-
-Your card ending in {fraud_case.cardEnding} is active and secure. No further action is needed.
-
-Thank you for confirming, {fraud_case.userName}. Is there anything else I can help you with?"""
-        
-        else:
-            new_status = "confirmed_fraud"
-            outcome_note = f"Customer denied making the transaction. Fraud confirmed. {additional_notes}".strip()
-            
-            cursor.execute("""
-                UPDATE fraud_cases 
-                SET caseStatus = ?, outcomeNote = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (new_status, outcome_note, fraud_case.id))
-            
-            conn.commit()
-            conn.close()
-            
-            fraud_case.case = new_status
-            fraud_case.outcomeNote = outcome_note
-            
-            print(f"🚨 Case ID {fraud_case.id} marked as FRAUDULENT for {fraud_case.userName}")
-            
-            return f"""I understand. I'm immediately taking the following actions to protect your account:
-
-1. Your card ending in {fraud_case.cardEnding} has been blocked to prevent further unauthorized transactions.
-2. A fraud dispute has been raised for the amount of {fraud_case.transactionAmount}.
-3. We'll investigate this transaction and you will not be held liable for this fraudulent charge.
-4. A new card will be sent to your registered address within 5-7 business days.
-
-You'll receive a confirmation email shortly with all the details and a reference number for your dispute.
-
-Is there anything else you'd like to know about this process, {fraud_case.userName}?"""
-    
-    except Exception as e:
-        print(f"❌ Database error during update: {e}")
-        return "There was an error updating the case. Please contact customer service."
-
-@function_tool
-async def end_fraud_call(
+async def view_cart(
     ctx: RunContext[Userdata]
 ) -> str:
-    """📞 Ends the fraud alert call and provides a summary."""
+    """👀 View all items currently in the shopping cart."""
     
-    fraud_case = ctx.userdata.fraud_case
+    cart = ctx.userdata.cart
     
-    summary = f"""Thank you for your time today, {fraud_case.userName or 'valued customer'}. 
-
-Let me quickly summarize our call:
-- We discussed a suspicious transaction of {fraud_case.transactionAmount} at {fraud_case.transactionName}
-- Case status: {fraud_case.case}
-- Action taken: {fraud_case.outcomeNote}
-
-Your security is our top priority at {BANK_NAME}. If you have any concerns or questions, please don't hesitate to call our 24/7 customer service line.
-
-Have a great day and stay safe!"""
+    if not cart.items:
+        return "Your cart is empty. What would you like to order today?"
     
-    print(f"📞 Call ended for {fraud_case.userName}")
-    return summary
+    response = f"Here's what's in your cart:\n\n"
+    total = 0.0
+    
+    for idx, item in enumerate(cart.items, 1):
+        item_total = item.price * item.quantity
+        total += item_total
+        response += f"{idx}. {item.name} ({item.brand})\n"
+        response += f"   Quantity: {item.quantity} x ₹{item.price} = ₹{item_total}\n"
+        if item.notes:
+            response += f"   Note: {item.notes}\n"
+    
+    response += f"\nTotal: ₹{total:.2f}"
+    return response
 
-class FraudAlertAgent(Agent):
+@function_tool
+async def remove_from_cart(
+    ctx: RunContext[Userdata],
+    item_name: Annotated[str, Field(description="Name of the item to remove")]
+) -> str:
+    """❌ Remove an item from the shopping cart."""
+    
+    cart = ctx.userdata.cart
+    item_name_lower = item_name.lower()
+    
+    for idx, cart_item in enumerate(cart.items):
+        if item_name_lower in cart_item.name.lower():
+            removed_item = cart.items.pop(idx)
+            return f"Removed {removed_item.name} from your cart."
+    
+    return f"I couldn't find '{item_name}' in your cart. Would you like to see what's in your cart?"
+
+@function_tool
+async def update_quantity(
+    ctx: RunContext[Userdata],
+    item_name: Annotated[str, Field(description="Name of the item to update")],
+    new_quantity: Annotated[int, Field(description="New quantity for the item")]
+) -> str:
+    """📝 Update the quantity of an item in the cart."""
+    
+    cart = ctx.userdata.cart
+    item_name_lower = item_name.lower()
+    
+    if new_quantity <= 0:
+        return await remove_from_cart(ctx, item_name)
+    
+    for cart_item in cart.items:
+        if item_name_lower in cart_item.name.lower():
+            old_quantity = cart_item.quantity
+            cart_item.quantity = new_quantity
+            return f"Updated {cart_item.name} quantity from {old_quantity} to {new_quantity}."
+    
+    return f"I couldn't find '{item_name}' in your cart."
+
+@function_tool
+async def clear_cart(
+    ctx: RunContext[Userdata]
+) -> str:
+    """🗑️ Clear all items from the shopping cart."""
+    
+    cart = ctx.userdata.cart
+    
+    if not cart.items:
+        return "Your cart is already empty."
+    
+    item_count = len(cart.items)
+    cart.items = []
+    
+    return f"Cart cleared! Removed {item_count} item(s)."
+
+@function_tool
+async def place_order(
+    ctx: RunContext[Userdata],
+    customer_name: Annotated[str, Field(description="Customer's name")],
+    delivery_address: Annotated[str, Field(description="Delivery address")]
+) -> str:
+    """✅ Place the order and save it to a JSON file."""
+    
+    cart = ctx.userdata.cart
+    
+    if not cart.items:
+        return "Your cart is empty! Please add some items before placing an order."
+    
+    # Calculate total
+    total = sum(item.price * item.quantity for item in cart.items)
+    
+    # Create order object
+    order = {
+        "order_id": f"ORD{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "timestamp": datetime.now().isoformat(),
+        "customer": {
+            "name": customer_name,
+            "address": delivery_address
+        },
+        "items": [
+            {
+                "item_id": item.item_id,
+                "name": item.name,
+                "brand": item.brand,
+                "size": item.size,
+                "quantity": item.quantity,
+                "price_per_unit": item.price,
+                "total_price": item.price * item.quantity,
+                "notes": item.notes
+            }
+            for item in cart.items
+        ],
+        "total_amount": total,
+        "status": "placed"
+    }
+    
+    # Save to JSON file
+    order_filename = f"{ORDERS_DIR}/order_{order['order_id']}.json"
+    with open(order_filename, 'w') as f:
+        json.dump(order, f, indent=2)
+    
+    # Clear cart
+    cart.items = []
+    cart.customer_name = customer_name
+    cart.customer_address = delivery_address
+    
+    response = f"""🎉 Order placed successfully!
+
+Order ID: {order['order_id']}
+Customer: {customer_name}
+Delivery Address: {delivery_address}
+Total Amount: ₹{total:.2f}
+
+Your order has been saved and will be delivered soon!
+Thank you for shopping with {STORE_NAME}!"""
+    
+    print(f"✅ Order saved: {order_filename}")
+    return response
+
+class GroceryAgent(Agent):
     def __init__(self):
         super().__init__(
-<<<<<<< HEAD
-            instructions=f"""You are a professional and calm Fraud Alert Representative from {BANK_NAME}'s Fraud Detection Department.
+            instructions=f"""You are a friendly and helpful voice shopping assistant for {STORE_NAME}, 
+a quick commerce grocery and food delivery service.
 
 🎯 **YOUR ROLE:**
-You are calling customers about suspicious transactions on their accounts. Your goal is to:
-1. Verify the customer's identity safely
-2. Inform them about the suspicious transaction
-3. Determine if the transaction is legitimate or fraudulent
-4. Take appropriate action to protect their account
-
-⚠️ **CRITICAL SECURITY RULES:**
-- NEVER ask for full card numbers, PINs, passwords, or CVV
-- NEVER ask for OTPs or authentication codes
-- Only use the security question stored in the database for verification
-- Always maintain a calm, professional, and reassuring tone
+Help customers order groceries, snacks, prepared foods, and beverages through natural conversation.
 
 💬 **CONVERSATION FLOW:**
 
-**STAGE 1: GREETING & INTRODUCTION**
-Start with:
-"Hello, this is the Fraud Detection Department calling from {BANK_NAME}. We've detected some unusual activity on one of our customer accounts and I need to speak with the account holder to verify a transaction. 
+**STAGE 1: GREETING**
+Warmly greet the customer:
+"Hi! Welcome to {STORE_NAME}! I'm your shopping assistant. I can help you order groceries, 
+snacks, prepared meals, and beverages. What would you like to order today?"
 
-May I know whom I'm speaking with?"
+**STAGE 2: TAKING ORDERS**
+- Listen to what the customer wants
+- Use `search_items` if they ask what's available
+- Use `add_to_cart` for specific items they request
+- Use `add_recipe_ingredients` when they ask for "ingredients for X" or "what I need for Y"
+- Always confirm what you're adding: "I've added 2 loaves of bread to your cart"
+- Ask clarifying questions when needed: "Would you like whole wheat or white bread?"
 
-**STAGE 2: LOAD CASE**
-Once they provide their name, use `load_fraud_case_for_user` to load their fraud case.
+**STAGE 3: CART MANAGEMENT**
+- Use `view_cart` when they ask "what's in my cart?"
+- Use `remove_from_cart` if they want to remove items
+- Use `update_quantity` if they want to change quantities
+- Use `clear_cart` if they want to start over
+- Proactively mention the running total occasionally
 
-If case found:
-"Thank you, [Name]. I have your account information here. Before I can discuss the details, I need to verify your identity for security purposes."
+**STAGE 4: CHECKOUT**
+When they say things like:
+- "That's all"
+- "I'm done"
+- "Place my order"
+- "Checkout"
 
-If case not found:
-"I apologize, but I don't see any fraud alerts under that name. Could you please verify the spelling of your name?"
+Ask for:
+1. Their name (if not already provided)
+2. Delivery address
 
-**STAGE 3: IDENTITY VERIFICATION**
-Ask the security question from the loaded case:
-"For verification purposes, can you please answer this security question: [security_question]"
+Then use `place_order` with this information.
 
-Use `verify_customer_identity` with their answer.
-
-If verification PASSES:
-- Proceed to disclose the transaction
-If verification FAILS:
-- Politely end the call: "For your security, I cannot proceed without proper verification. Please visit your nearest branch or call our customer service line. Thank you."
-
-**STAGE 4: TRANSACTION DISCLOSURE**
-Present the suspicious transaction clearly:
-"Thank you for verifying your identity. I'm calling because we detected a suspicious transaction on your card ending in [card_ending].
-
-Here are the details:
-- Amount: [transaction_amount]
-- Merchant: [transaction_name]
-- Location: [transaction_location]
-- Date & Time: [transaction_time]
-- Source: [transaction_source]
-
-This transaction was flagged because [mention reason - unusual location/amount/time/merchant].
-
-My question for you is: Did you authorize or make this transaction?"
-
-**STAGE 5: RESOLUTION**
-Listen carefully to their response:
-
-If they say YES (they made the transaction):
-- Use `mark_transaction_status` with user_confirmed=True
-- Reassure them their card is safe
-- Ask if they have any questions
-
-If they say NO (they didn't make it):
-- Express concern and support
-- Use `mark_transaction_status` with user_confirmed=False
-- Explain the protective actions being taken
-- Provide next steps
-
-**STAGE 6: CLOSING**
-- Ask if they have any other questions
-- When they're ready to end, use `end_fraud_call` to summarize
-- Thank them professionally
+**STAGE 5: ORDER CONFIRMATION**
+After placing the order:
+- Confirm the order ID and total
+- Ask if they need anything else
+- Thank them warmly
 
 **CONVERSATION STYLE:**
-- Calm and reassuring (fraud situations can be stressful)
-- Professional but empathetic
-- Clear and concise
-- Patient with their questions
-- Never pushy or aggressive
-- Use phrases like "for your security", "to protect your account"
+- Friendly and conversational (like talking to a helpful store employee)
+- Proactive: suggest items, ask if they need anything else
+- Patient: handle changes and questions gracefully
+- Clear: always confirm actions ("I've added...", "Your cart now has...")
+- Natural: avoid robotic responses
+- Handle errors gracefully: if something goes wrong, apologize and offer alternatives
 
-**HANDLING EDGE CASES:**
-- If they're confused: Patiently re-explain
-- If they're angry: Stay calm, empathize, focus on helping
-- If they want to speak to a human: Acknowledge and assure them this is handled by the fraud team
-- If they ask about other transactions: Focus on the flagged transaction first
+**HANDLING SPECIAL REQUESTS:**
+- "Ingredients for pasta" → Use `add_recipe_ingredients` with "pasta"
+- "What I need for a sandwich" → Use `add_recipe_ingredients` with "sandwich"
+- "Show me snacks" → Use `search_items` with "snacks"
+- "What vegetables do you have?" → Use `search_items`
 
-**KEY TOOLS:**
-- `load_fraud_case_for_user`: Load the fraud case by name
-- `verify_customer_identity`: Verify using security answer
-- `mark_transaction_status`: Mark as safe or fraudulent
-- `end_fraud_call`: Summarize and close the call
+**KEY PRINCIPLES:**
+1. Always confirm additions to cart
+2. Mention prices naturally
+3. Keep track of running total
+4. Be helpful but not pushy
+5. Handle recipe requests intelligently
+6. If a tool call fails, acknowledge it and offer alternatives
 
-Remember: Your primary goal is to protect the customer's account while providing excellent service during a potentially stressful situation.""",
-            tools=[load_fraud_case_for_user, verify_customer_identity, mark_transaction_status, end_fraud_call],
-=======
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting including emojis, asterisks, or other weird symbols.
-            You are curious, friendly, and have a sense of humor.""",
->>>>>>> 235e9e0c86a10c5f1946ed0202e89f42d5f93bbd
+**AVAILABLE TOOLS:**
+- `search_items`: Search the catalog
+- `add_to_cart`: Add individual items
+- `add_recipe_ingredients`: Add preset recipe ingredients
+- `view_cart`: Show cart contents
+- `remove_from_cart`: Remove items
+- `update_quantity`: Change quantities
+- `clear_cart`: Empty the cart
+- `place_order`: Checkout and save order
+
+Remember: You're here to make grocery shopping easy and enjoyable!""",
+            tools=[search_items, add_to_cart, add_recipe_ingredients, view_cart, 
+                   remove_from_cart, update_quantity, clear_cart, place_order],
         )
 
 def prewarm(proc: JobProcess):
-    """Preload VAD model and initialize database"""
+    """Preload VAD model and initialize catalog"""
     proc.userdata["vad"] = silero.VAD.load()
-    init_database()
-    print("✅ Prewarmed: VAD model loaded and database initialized")
+    init_catalog()
+    print("✅ Prewarmed: VAD model loaded and catalog initialized")
 
 async def entrypoint(ctx: JobContext):
-    """Main entry point for the fraud alert agent"""
+    """Main entry point for the grocery ordering agent"""
     ctx.log_context_fields = {"room": ctx.room.name}
     
-    userdata = Userdata(fraud_case=FraudCaseData())
+    catalog = load_catalog()
+    userdata = Userdata(
+        cart=ShoppingCart(),
+        catalog=catalog
+    )
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
@@ -492,7 +675,7 @@ async def entrypoint(ctx: JobContext):
     userdata.agent_session = session
     
     await session.start(
-        agent=FraudAlertAgent(),
+        agent=GroceryAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC()

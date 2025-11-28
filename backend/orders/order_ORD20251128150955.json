@@ -1,0 +1,42 @@
+{
+  "order_id": "ORD20251128150955",
+  "timestamp": "2025-11-28T15:09:55.867701",
+  "customer": {
+    "name": "Anat Mahajan",
+    "address": "Chitkar University"
+  },
+  "items": [
+    {
+      "item_id": "g002",
+      "name": "White Bread",
+      "brand": "Britannia",
+      "size": "450g",
+      "quantity": 2,
+      "price_per_unit": 40,
+      "total_price": 80,
+      "notes": ""
+    },
+    {
+      "item_id": "g005",
+      "name": "Peanut Butter",
+      "brand": "Sundrop",
+      "size": "400g",
+      "quantity": 2,
+      "price_per_unit": 180,
+      "total_price": 360,
+      "notes": ""
+    },
+    {
+      "item_id": "s001",
+      "name": "Potato Chips",
+      "brand": "Lays",
+      "size": "50g",
+      "quantity": 1,
+      "price_per_unit": 20,
+      "total_price": 20,
+      "notes": ""
+    }
+  ],
+  "total_amount": 460,
+  "status": "placed"
+}
