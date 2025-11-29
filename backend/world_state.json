@@ -1,0 +1,91 @@
+{
+  "player": {
+    "name": "Luffy",
+    "crew_role": "Captain",
+    "health": 100,
+    "max_health": 100,
+    "level": 1,
+    "bounty": 50000,
+    "devil_fruit": null,
+    "haki_types": [],
+    "inventory": [
+      "Rusty Sword",
+      "Treasure Map Fragment"
+    ],
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "willpower": 12,
+      "luck": 11
+    },
+    "role": "Captain",
+    "haki_awakened": false
+  },
+  "location": "Windmill Village Docks, Dawn Island",
+  "npcs": {
+    "barkeeper_makino": {
+      "name": "Makino",
+      "role": "Barkeeper",
+      "attitude": "friendly",
+      "location": "Windmill Village",
+      "alive": true,
+      "dialogue": "Welcome! Are you ready to set sail?"
+    },
+    "Makino": {
+      "location": "Partys Bar",
+      "status": "friendly"
+    },
+    "Woop Slap": {
+      "location": "Windmill Village",
+      "status": "neutral"
+    }
+  },
+  "events": [
+    "Started adventure in Windmill Village"
+  ],
+  "quests": {
+    "active": [],
+    "completed": []
+  },
+  "flags": {
+    "has_ship": false,
+    "entered_grand_line": false,
+    "first_devil_fruit_seen": false,
+    "marine_encounters": 0,
+    "treasure_found": 0,
+    "met_fisherman": true
+  },
+  "turn_count": 6,
+  "inventory": [],
+  "current_story_arc": "Setting Sail",
+  "last_roll": {
+    "roll": 16,
+    "modifier": 1,
+    "total": 17,
+    "difficulty": 13,
+    "success": true,
+    "critical": false,
+    "stat": "willpower"
+  },
+  "ship": {
+    "name": "Going Merry-go-round",
+    "status": "hull patched, mast stabilized",
+    "repairs_needed": [
+      "sails"
+    ],
+    "type": "Fishing Boat",
+    "condition": "Repaired but crude",
+    "has_sails": true
+  },
+  "player_name": "Luffy",
+  "role": "Captain",
+  "health": 100,
+  "bounty": 0,
+  "stats": {
+    "strength": 10,
+    "agility": 10,
+    "willpower": 12,
+    "luck": 10
+  },
+  "abilities": []
+}
