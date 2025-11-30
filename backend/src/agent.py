@@ -1,11 +1,10 @@
-import logging
 import json
+import logging
 import os
-import random
-from typing import Annotated, Optional, List, Dict
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-
+from typing import List, Dict, Optional, Annotated
 from dotenv import load_dotenv
 from pydantic import Field
 from livekit.agents import (
@@ -19,515 +18,660 @@ from livekit.agents import (
     function_tool,
     RunContext,
 )
-
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-logger = logging.getLogger("agent")
+# -------------------------
+# Logging
+# -------------------------
+logger = logging.getLogger("voice_game_master")
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+logger.addHandler(handler)
 load_dotenv(".env.local")
 
-# Game Configuration
-WORLD_STATE_FILE = "world_state.json"
-SAVE_GAME_DIR = "saved_games"
-
-# Initialize world state structure
-DEFAULT_WORLD_STATE = {
-    "player": {
-        "name": "Unknown Pirate",
-        "crew_role": "Captain",
-        "health": 100,
-        "max_health": 100,
-        "level": 1,
-        "bounty": 0,
-        "devil_fruit": None,
-        "haki_types": [],
-        "inventory": ["Rusty Sword", "Treasure Map Fragment"],
-        "stats": {
-            "strength": 10,
-            "agility": 10,
-            "willpower": 10,
-            "luck": 10
-        }
+# -------------------------
+# Simple Product Catalog 
+# -------------------------
+CATALOG = [
+    {
+        "id": "mug-001",
+        "name": "Stoneware Chai Mug",
+        "description": "Hand-glazed ceramic mug perfect for masala chai.",
+        "price": 299,
+        "currency": "INR",
+        "category": "mug",
+        "color": "blue",
+        "sizes": [],
     },
-    "location": {
-        "current": "Windmill Village",
-        "island": "Dawn Island",
-        "sea": "East Blue",
-        "description": "A peaceful village where your adventure begins",
-        "paths": ["Forest Path", "Harbor", "Village Square"]
+    {
+        "id": "tee-001",
+        "name": "Anhad Tee (Cotton)",
+        "description": "Comfort-fit cotton t-shirt with subtle logo.",
+        "price": 799,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "black",
+        "sizes": ["S", "M", "L", "XL"],
     },
-    "npcs": {
-        "barkeeper_makino": {
-            "name": "Makino",
-            "role": "Barkeeper",
-            "attitude": "friendly",
-            "location": "Windmill Village",
-            "alive": True,
-            "dialogue": "Welcome! Are you ready to set sail?"
-        }
+    {
+        "id": "hoodie-001",
+        "name": "Cozy Hoodie",
+        "description": "Warm pullover hoodie, fleece-lined.",
+        "price": 1499,
+        "currency": "INR",
+        "category": "hoodie",
+        "color": "grey",
+        "sizes": ["M", "L", "XL"],
     },
-    "events": [
-        "Started adventure in Windmill Village"
-    ],
-    "quests": {
-        "active": [
-            {
-                "name": "Set Sail for Adventure",
-                "description": "Find a ship and crew to begin your journey on the Grand Line",
-                "objective": "Recruit at least one crew member and acquire a ship",
-                "completed": False
-            }
-        ],
-        "completed": []
+    {
+        "id": "mug-002",
+        "name": "Insulated Travel Mug",
+        "description": "Keeps chai warm on your way to work.",
+        "price": 599,
+        "currency": "INR",
+        "category": "mug",
+        "color": "white",
+        "sizes": [],
     },
-    "flags": {
-        "has_ship": False,
-        "entered_grand_line": False,
-        "first_devil_fruit_seen": False,
-        "marine_encounters": 0,
-        "treasure_found": 0
+    {
+        "id": "hoodie-002",
+        "name": "Black Zip Hoodie",
+        "description": "Lightweight zip-up hoodie, black.",
+        "price": 1299,
+        "currency": "INR",
+        "category": "hoodie",
+        "color": "black",
+        "sizes": ["S", "M", "L"],
     },
-    "turn_count": 0
-}
+    {
+        "id": "tee-002",
+        "name": "Casual Cotton Tee",
+        "description": "Everyday cotton t-shirt, breathable and soft.",
+        "price": 299,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "white",
+        "sizes": ["S", "M", "L", "XL"],
+    },
+    {
+        "id": "tee-003",
+        "name": "Graphic Tee",
+        "description": "Printed graphic t-shirt with vibrant design.",
+        "price": 499,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "navy",
+        "sizes": ["S", "M", "L", "XL"],
+    },
+    {
+        "id": "tee-004",
+        "name": "Premium Polo Tee",
+        "description": "Polo-style t-shirt with premium stitching.",
+        "price": 999,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "maroon",
+        "sizes": ["M", "L", "XL"],
+    },
+    {
+        "id": "tee-005",
+        "name": "Summer V-neck Tee",
+        "description": "Lightweight V-neck tee for hot days.",
+        "price": 350,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "sky",
+        "sizes": ["S", "M", "L"],
+    },
+    {
+        "id": "tee-006",
+        "name": "Henley Tee",
+        "description": "Smart casual henley style t-shirt.",
+        "price": 699,
+        "currency": "INR",
+        "category": "tshirt",
+        "color": "olive",
+        "sizes": ["M", "L", "XL"],
+    },
+    {
+        "id": "rain-001",
+        "name": "Light Raincoat",
+        "description": "Waterproof light raincoat, packable.",
+        "price": 1299,
+        "currency": "INR",
+        "category": "raincoat",
+        "color": "yellow",
+        "sizes": ["M", "L", "XL"],
+    },
+    {
+        "id": "rain-002",
+        "name": "Heavy Duty Raincoat",
+        "description": "Heavy-duty rainproof coat for monsoon.",
+        "price": 2499,
+        "currency": "INR",
+        "category": "raincoat",
+        "color": "navy",
+        "sizes": ["L", "XL"],
+    },
+    {
+        "id": "laptop-001",
+        "name": "Generic Laptop (50k)",
+        "description": "A reliable laptop suitable for everyday use.",
+        "price": 50000,
+        "currency": "INR",
+        "category": "laptop",
+        "color": "silver",
+        "sizes": [],
+    },
+    {
+        "id": "laptop-002",
+        "name": "Dell Inspiron (Budget)",
+        "description": "Compact Dell laptop for students and professionals.",
+        "price": 27800,
+        "currency": "INR",
+        "category": "laptop",
+        "color": "black",
+        "sizes": [],
+    },
+    {
+        "id": "laptop-003",
+        "name": "Lenovo ThinkPad",
+        "description": "Durable Lenovo laptop with strong performance.",
+        "price": 60000,
+        "currency": "INR",
+        "category": "laptop",
+        "color": "black",
+        "sizes": [],
+    },
+    {
+        "id": "laptop-004",
+        "name": "HP Pavilion",
+        "description": "High-performance HP laptop for creators.",
+        "price": 100000,
+        "currency": "INR",
+        "category": "laptop",
+        "color": "silver",
+        "sizes": [],
+    },
+    {
+        "id": "storage-001",
+        "name": "External Hard Disk 1TB",
+        "description": "Portable external hard disk for backups.",
+        "price": 50000,
+        "currency": "INR",
+        "category": "storage",
+        "color": "black",
+        "sizes": [],
+    },
+    {
+        "id": "phone-001",
+        "name": "Redmi Note (Entry)",
+        "description": "Affordable Redmi smartphone with solid features.",
+        "price": 12000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "blue",
+        "sizes": [],
+    },
+    {
+        "id": "phone-002",
+        "name": "Oppo A-Series",
+        "description": "Stylish Oppo phone with good camera.",
+        "price": 18000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "green",
+        "sizes": [],
+    },
+    {
+        "id": "phone-003",
+        "name": "Samsung M-Series",
+        "description": "Mid-range Samsung phone for everyday use.",
+        "price": 25000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "black",
+        "sizes": [],
+    },
+    {
+        "id": "phone-004",
+        "name": "iPhone (Standard)",
+        "description": "Apple iPhone model example (price varies by config).",
+        "price": 50000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "white",
+        "sizes": [],
+    },
+    {
+        "id": "phone-005",
+        "name": "Oppo Reno",
+        "description": "Higher-end Oppo phone with premium features.",
+        "price": 35000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "black",
+        "sizes": [],
+    },
+    {
+        "id": "phone-006",
+        "name": "Redmi Pro",
+        "description": "Redmi higher-tier phone with improved camera and battery.",
+        "price": 22000,
+        "currency": "INR",
+        "category": "mobile",
+        "color": "grey",
+        "sizes": [],
+    },
+]
 
-def init_world_state():
-    """Initialize world state JSON file"""
-    if not os.path.exists(WORLD_STATE_FILE):
-        with open(WORLD_STATE_FILE, 'w') as f:
-            json.dump(DEFAULT_WORLD_STATE, f, indent=2)
-        print(f"✅ World state created: {WORLD_STATE_FILE}")
-    
-    # Create saved games directory
-    if not os.path.exists(SAVE_GAME_DIR):
-        os.makedirs(SAVE_GAME_DIR)
-        print(f"✅ Saved games directory created: {SAVE_GAME_DIR}")
+ORDERS_FILE = "orders.json"
 
-def load_world_state():
-    """Load world state from JSON file"""
-    with open(WORLD_STATE_FILE, 'r') as f:
-        return json.load(f)
+# ensure orders file exists
+if not os.path.exists(ORDERS_FILE):
+    with open(ORDERS_FILE, "w") as f:
+        json.dump([], f)
 
-def save_world_state(state: Dict):
-    """Save world state to JSON file"""
-    with open(WORLD_STATE_FILE, 'w') as f:
-        json.dump(state, f, indent=2)
-
+# -------------------------
+# Per-session Userdata
+# -------------------------
 @dataclass
-class GameState:
-    """Game state wrapper"""
-    world: Dict
-    agent_session: Optional[AgentSession] = None
+class Userdata:
+    player_name: Optional[str] = None
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    cart: List[Dict] = field(default_factory=list)
+    orders: List[Dict] = field(default_factory=list)
+    history: List[Dict] = field(default_factory=list)
 
-@function_tool
-async def check_character_sheet(
-    ctx: RunContext[GameState]
-) -> str:
-    """📋 Check your character sheet with stats, inventory, and abilities."""
-    
-    world = ctx.userdata.world
-    player = world["player"]
-    
-    response = f"""⚔️ **{player['name'].upper()} - {player['crew_role']}**
-
-💪 **STATS:**
-- Health: {player['health']}/{player['max_health']} HP
-- Level: {player['level']}
-- Bounty: {player['bounty']:,} Berries
-
-📊 **ATTRIBUTES:**
-- Strength: {player['stats']['strength']}
-- Agility: {player['stats']['agility']}
-- Willpower: {player['stats']['willpower']}
-- Luck: {player['stats']['luck']}
-
-🎒 **INVENTORY:**
-{chr(10).join(f"- {item}" for item in player['inventory'])}
-
-🍎 **DEVIL FRUIT:** {player['devil_fruit'] or 'None'}
-
-💫 **HAKI:** {', '.join(player['haki_types']) if player['haki_types'] else 'Not awakened yet'}
-
-⭐ **BOUNTY:** {player['bounty']:,} Berries"""
-    
-    return response
-
-@function_tool
-async def check_location(
-    ctx: RunContext[GameState]
-) -> str:
-    """🗺️ Check your current location and available paths."""
-    
-    world = ctx.userdata.world
-    location = world["location"]
-    
-    response = f"""📍 **CURRENT LOCATION:**
-{location['current']} - {location['island']} ({location['sea']})
-
-{location['description']}
-
-🧭 **AVAILABLE PATHS:**
-{chr(10).join(f"- {path}" for path in location['paths'])}"""
-    
-    return response
-
-@function_tool
-async def view_quests(
-    ctx: RunContext[GameState]
-) -> str:
-    """📜 View your active and completed quests."""
-    
-    world = ctx.userdata.world
-    quests = world["quests"]
-    
-    response = "📜 **QUEST LOG:**\n\n"
-    
-    if quests["active"]:
-        response += "**ACTIVE QUESTS:**\n"
-        for quest in quests["active"]:
-            status = "✅" if quest["completed"] else "📌"
-            response += f"{status} {quest['name']}\n"
-            response += f"   {quest['description']}\n"
-            response += f"   Objective: {quest['objective']}\n\n"
-    
-    if quests["completed"]:
-        response += "**COMPLETED QUESTS:**\n"
-        for quest in quests["completed"]:
-            response += f"✅ {quest['name']}\n"
-    
-    if not quests["active"] and not quests["completed"]:
-        response += "No quests yet! Your adventure awaits!"
-    
-    return response
-
-@function_tool
-async def roll_dice(
-    ctx: RunContext[GameState],
-    stat: Annotated[str, Field(description="Stat to use: strength, agility, willpower, or luck")],
-    difficulty: Annotated[int, Field(description="Difficulty level (5-20)", default=10)] = 10
-) -> str:
-    """🎲 Roll a d20 check with stat modifier against a difficulty."""
-    
-    world = ctx.userdata.world
-    player = world["player"]
-    
-    # Roll d20
-    roll = random.randint(1, 20)
-    
-    # Get stat modifier
-    stat_value = player["stats"].get(stat.lower(), 10)
-    modifier = (stat_value - 10) // 2  # D&D style modifier
-    
-    total = roll + modifier
-    
-    # Determine success
-    if roll == 20:
-        result = "🌟 **CRITICAL SUCCESS!** Natural 20!"
-        success = True
-        critical = True
-    elif roll == 1:
-        result = "💥 **CRITICAL FAILURE!** Natural 1!"
-        success = False
-        critical = True
-    elif total >= difficulty:
-        result = f"✅ **SUCCESS!** (Needed {difficulty})"
-        success = True
-        critical = False
-    else:
-        result = f"❌ **FAILURE!** (Needed {difficulty})"
-        success = False
-        critical = False
-    
-    response = f"""🎲 **{stat.upper()} CHECK:**
-Roll: {roll} + {modifier} ({stat} modifier) = {total}
-Difficulty: {difficulty}
-
-{result}"""
-    
-    # Store roll result in world state for GM to use
-    world["last_roll"] = {
-        "roll": roll,
-        "modifier": modifier,
-        "total": total,
-        "difficulty": difficulty,
-        "success": success,
-        "critical": critical,
-        "stat": stat
-    }
-    save_world_state(world)
-    
-    return response
-
-@function_tool
-async def update_world_state(
-    ctx: RunContext[GameState],
-    updates: Annotated[str, Field(description="JSON string of updates to apply to world state")]
-) -> str:
-    """🔄 Update the world state (used by GM to track changes)."""
-    
+# -------------------------
+# Merchant-layer helpers
+# -------------------------
+def _load_all_orders() -> List[Dict]:
     try:
-        world = ctx.userdata.world
-        update_data = json.loads(updates)
-        
-        # Apply updates recursively
-        def apply_updates(target, source):
-            for key, value in source.items():
-                if isinstance(value, dict) and key in target and isinstance(target[key], dict):
-                    apply_updates(target[key], value)
-                else:
-                    target[key] = value
-        
-        apply_updates(world, update_data)
-        
-        # Increment turn count
-        world["turn_count"] = world.get("turn_count", 0) + 1
-        
-        # Save state
-        save_world_state(world)
-        
-        return "✅ World state updated successfully."
-    except Exception as e:
-        return f"❌ Failed to update world state: {str(e)}"
+        with open(ORDERS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return []
 
-@function_tool
-async def save_game(
-    ctx: RunContext[GameState],
-    save_name: Annotated[str, Field(description="Name for this save file")]
-) -> str:
-    """💾 Save the current game state."""
+def _save_order(order: Dict):
+    orders = _load_all_orders()
+    orders.append(order)
+    with open(ORDERS_FILE, "w") as f:
+        json.dump(orders, f, indent=2)
+
+def list_products(filters: Optional[Dict] = None) -> List[Dict]:
+    """Filter products by category, max_price, color, size, or query."""
+    filters = filters or {}
+    results = []
+    query = filters.get("q")
+    category = filters.get("category")
+    max_price = filters.get("max_price") or filters.get("to") or filters.get("max")
+    min_price = filters.get("min_price") or filters.get("from") or filters.get("min")
+    color = filters.get("color")
+    size = filters.get("size")
     
-    world = ctx.userdata.world
+    # normalize category synonyms
+    if category:
+        cat = category.lower()
+        if cat in ("phone", "phones", "mobile", "mobile phone", "mobiles"):
+            category = "mobile"
+        elif cat in ("tshirt", "t-shirts", "tees", "tee"):
+            category = "tshirt"
+        else:
+            category = cat
     
-    # Create save data
-    save_data = {
-        "timestamp": datetime.now().isoformat(),
-        "save_name": save_name,
-        "world_state": world
+    for p in CATALOG:
+        ok = True
+        
+        # category matching
+        if category:
+            pcat = p.get("category", "").lower()
+            if pcat != category and category not in pcat and pcat not in category:
+                ok = False
+        
+        if max_price:
+            try:
+                if p.get("price", 0) > int(max_price):
+                    ok = False
+            except Exception:
+                pass
+        
+        if min_price:
+            try:
+                if p.get("price", 0) < int(min_price):
+                    ok = False
+            except Exception:
+                pass
+        
+        if color and p.get("color") and p.get("color") != color:
+            ok = False
+        
+        if size and (not p.get("sizes") or size not in p.get("sizes")):
+            ok = False
+        
+        if query:
+            q = query.lower()
+            if "phone" in q or "mobile" in q:
+                if p.get("category") != "mobile":
+                    ok = False
+            else:
+                if q not in p.get("name", "").lower() and q not in p.get("description", "").lower():
+                    ok = False
+        
+        if ok:
+            results.append(p)
+    
+    return results
+
+def find_product_by_ref(ref_text: str, candidates: Optional[List[Dict]] = None) -> Optional[Dict]:
+    """Resolve references like 'second hoodie' or 'black hoodie' to a product dict."""
+    ref = (ref_text or "").lower().strip()
+    cand = candidates if candidates is not None else CATALOG
+    
+    # prefer mobiles if user explicitly mentions phone/mobile
+    wants_mobile = any(w in ref for w in ("phone", "phones", "mobile", "mobiles"))
+    filtered = cand
+    if wants_mobile:
+        filtered = [p for p in cand if p.get("category") == "mobile"]
+        if not filtered:
+            filtered = cand
+    
+    # ordinal handling
+    ordinals = {"first": 0, "second": 1, "third": 2, "fourth": 3}
+    for word, idx in ordinals.items():
+        if word in ref:
+            if idx < len(filtered):
+                return filtered[idx]
+    
+    # direct id match
+    for p in cand:
+        if p["id"].lower() == ref:
+            return p
+    
+    # color + category matching
+    for p in cand:
+        if p.get("color") and p["color"] in ref and p.get("category") and p["category"] in ref:
+            return p
+    
+    # name substring
+    for p in filtered:
+        name = p["name"].lower()
+        if all(tok in name for tok in ref.split() if len(tok) > 2):
+            return p
+    
+    for p in cand:
+        for tok in ref.split():
+            if len(tok) > 2 and tok in p["name"].lower():
+                return p
+    
+    # numeric index
+    for token in ref.split():
+        if token.isdigit():
+            idx = int(token) - 1
+            if 0 <= idx < len(filtered):
+                return filtered[idx]
+    
+    return None
+
+def create_order_object(line_items: List[Dict], currency: str = "INR") -> Dict:
+    """Create order from line items."""
+    items = []
+    total = 0
+    for li in line_items:
+        pid = li.get("product_id")
+        qty = int(li.get("quantity", 1))
+        prod = next((p for p in CATALOG if p["id"] == pid), None)
+        if not prod:
+            raise ValueError(f"Product {pid} not found")
+        line_total = prod["price"] * qty
+        total += line_total
+        items.append({
+            "product_id": pid,
+            "name": prod["name"],
+            "unit_price": prod["price"],
+            "quantity": qty,
+            "line_total": line_total,
+            "attrs": li.get("attrs", {}),
+        })
+    
+    order = {
+        "id": f"order-{str(uuid.uuid4())[:8]}",
+        "items": items,
+        "total": total,
+        "currency": currency,
+        "created_at": datetime.utcnow().isoformat() + "Z",
     }
+    _save_order(order)
+    return order
+
+def get_most_recent_order() -> Optional[Dict]:
+    all_orders = _load_all_orders()
+    if not all_orders:
+        return None
+    return all_orders[-1]
+
+# -------------------------
+# Agent Tools
+# -------------------------
+@function_tool
+async def show_catalog(
+    ctx: RunContext[Userdata],
+    q: Annotated[Optional[str], Field(default=None, description="Search query (optional)")] = None,
+    category: Annotated[Optional[str], Field(default=None, description="Category (optional)")] = None,
+    max_price: Annotated[Optional[int], Field(default=None, description="Maximum price (optional)")] = None,
+    color: Annotated[Optional[str], Field(default=None, description="Color (optional)")] = None,
+) -> str:
+    """Return a short spoken summary of matching products."""
+    # normalize category input
+    if category:
+        cat = category.lower()
+        if cat in ("phone", "phones", "mobile", "mobile phone", "mobiles"):
+            category = "mobile"
+        elif cat in ("tshirt", "t-shirts", "tees", "tee"):
+            category = "tshirt"
     
-    # Save to file
-    safe_filename = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in save_name)
-    save_path = f"{SAVE_GAME_DIR}/save_{safe_filename}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    # If query mentions phones, prefer category mobile
+    if not category and q:
+        if any(w in q.lower() for w in ("phone", "phones", "mobile", "mobiles")):
+            category = "mobile"
+        if any(w in q.lower() for w in ("tee", "tshirt", "t-shirts", "tees")):
+            category = "tshirt"
     
-    with open(save_path, 'w') as f:
-        json.dump(save_data, f, indent=2)
+    filters = {"q": q, "category": category, "max_price": max_price, "color": color}
+    prods = list_products({k: v for k, v in filters.items() if v is not None})
     
-    print(f"✅ Game saved: {save_path}")
+    if not prods:
+        return "Sorry — I couldn't find any items that match. Would you like to try another search?"
     
-    return f"💾 Game saved successfully as '{save_name}'! You can load this save anytime to continue your adventure."
+    # Summarize top 8
+    lines = [f"Here are the top {min(8, len(prods))} items I found at Voice shop:"]
+    for idx, p in enumerate(prods[:8], start=1):
+        size_info = f" (sizes: {', '.join(p['sizes'])})" if p.get('sizes') else ""
+        lines.append(f"{idx}. {p['name']} — {p['price']} {p['currency']} (id: {p['id']}){size_info}")
+    
+    lines.append("You can say: 'I want the second item in size M' or 'add mug-001 to my cart, quantity 2'.")
+    
+    if any(p.get('category') == 'mobile' for p in prods):
+        lines.append("To buy a phone say: 'Add phone-002 to my cart' or 'I want the second phone, quantity 1'.")
+    
+    return "\n".join(lines)
 
 @function_tool
-async def add_to_inventory(
-    ctx: RunContext[GameState],
-    item_name: Annotated[str, Field(description="Name of the item to add")]
+async def add_to_cart(
+    ctx: RunContext[Userdata],
+    product_ref: Annotated[str, Field(description="Reference to product: id, name, or spoken ref")],
+    quantity: Annotated[int, Field(default=1, description="Quantity")] = 1,
+    size: Annotated[Optional[str], Field(default=None, description="Size (optional)")] = None,
 ) -> str:
-    """📦 Add an item to your inventory."""
+    """Resolve a product and add to the session cart."""
+    userdata = ctx.userdata
+    prod = find_product_by_ref(product_ref, CATALOG)
     
-    world = ctx.userdata.world
-    player = world["player"]
+    if not prod:
+        return "I couldn't resolve which product you meant. Try using the item id or say 'show catalog' to hear options."
     
-    player["inventory"].append(item_name)
-    save_world_state(world)
+    userdata.cart.append({
+        "product_id": prod["id"],
+        "quantity": int(quantity),
+        "attrs": {"size": size} if size else {},
+    })
     
-    return f"✅ Added {item_name} to your inventory!"
+    userdata.history.append({
+        "time": datetime.utcnow().isoformat() + "Z",
+        "action": "add_to_cart",
+        "product_id": prod["id"],
+        "quantity": int(quantity),
+    })
+    
+    return f"Added {quantity} x {prod['name']} to your cart. What would you like to do next?"
 
 @function_tool
-async def remove_from_inventory(
-    ctx: RunContext[GameState],
-    item_name: Annotated[str, Field(description="Name of the item to remove")]
+async def show_cart(
+    ctx: RunContext[Userdata],
 ) -> str:
-    """🗑️ Remove an item from your inventory."""
+    """Show current cart contents."""
+    userdata = ctx.userdata
+    if not userdata.cart:
+        return "Your cart is empty. You can say 'show catalog' to browse items."
     
-    world = ctx.userdata.world
-    player = world["player"]
+    lines = ["Items in your cart:"]
+    total = 0
+    for li in userdata.cart:
+        p = next((x for x in CATALOG if x["id"] == li["product_id"]), None)
+        if not p:
+            continue
+        line_total = p["price"] * li.get("quantity", 1)
+        total += line_total
+        sz = li.get("attrs", {}).get("size")
+        sz_text = f", size {sz}" if sz else ""
+        lines.append(f"- {p['name']} x {li['quantity']}{sz_text}: {line_total} INR")
     
-    if item_name in player["inventory"]:
-        player["inventory"].remove(item_name)
-        save_world_state(world)
-        return f"✅ Removed {item_name} from your inventory."
-    else:
-        return f"❌ You don't have {item_name} in your inventory."
+    lines.append(f"Cart total: {total} INR")
+    lines.append("Say 'place my order' to checkout or 'clear cart' to empty the cart.")
+    return "\n".join(lines)
 
-class OnePieceGameMaster(Agent):
+@function_tool
+async def clear_cart(
+    ctx: RunContext[Userdata],
+) -> str:
+    """Clear the cart."""
+    userdata = ctx.userdata
+    userdata.cart = []
+    userdata.history.append({"time": datetime.utcnow().isoformat() + "Z", "action": "clear_cart"})
+    return "Your cart has been cleared. What would you like to do next?"
+
+@function_tool
+async def place_order(
+    ctx: RunContext[Userdata],
+    confirm: Annotated[bool, Field(default=True, description="Confirm order placement")] = True,
+) -> str:
+    """Create order from session cart and persist."""
+    userdata = ctx.userdata
+    if not userdata.cart:
+        return "Your cart is empty — nothing to place. Would you like to browse items?"
+    
+    line_items = []
+    for li in userdata.cart:
+        line_items.append({
+            "product_id": li["product_id"],
+            "quantity": li.get("quantity", 1),
+            "attrs": li.get("attrs", {}),
+        })
+    
+    order = create_order_object(line_items)
+    userdata.orders.append(order)
+    userdata.history.append({
+        "time": datetime.utcnow().isoformat() + "Z",
+        "action": "place_order",
+        "order_id": order["id"]
+    })
+    
+    # clear cart after order
+    userdata.cart = []
+    
+    return f"Order placed. Order ID {order['id']}. Total {order['total']} {order['currency']}. What would you like to do next?"
+
+@function_tool
+async def last_order(
+    ctx: RunContext[Userdata],
+) -> str:
+    """Show the most recent order."""
+    ord = get_most_recent_order()
+    if not ord:
+        return "You have no past orders yet."
+    
+    lines = [f"Most recent order: {ord['id']} — {ord['created_at']}"]
+    for it in ord['items']:
+        lines.append(f"- {it['name']} x {it['quantity']}: {it['line_total']} {ord['currency']}")
+    lines.append(f"Total: {ord['total']} {ord['currency']}")
+    return "\n".join(lines)
+
+# -------------------------
+# The Agent (Ramu Kaka)
+# -------------------------
+class GameMasterAgent(Agent):
     def __init__(self):
+        instructions = """
+You are 'luffy', the friendly shopkeeper and voice assistant for voice shop.
+
+Universe: A small neighbourhood Indian shop selling mugs, hoodies, tees, laptops, mobiles, and more.
+
+Tone: Warm, helpful, slightly jocular; keep sentences short for TTS clarity.
+
+Role: Help the customer browse the catalog, add items to cart, place orders, and review recent orders.
+
+Rules:
+- Use the provided tools to show the catalog, add items to cart, show the cart, place orders, show last order and clear the cart.
+- Keep continuity using the per-session userdata. Mention cart contents if relevant.
+- Drive short voice-first turns suitable for spoken delivery.
+- When presenting options, include product id and price (e.g. 'mug-001 — 299 INR').
+- For items with sizes (tshirts, hoodies), always ask for size before adding to cart.
+- Be conversational and natural - don't be robotic.
+        """
         super().__init__(
-            instructions="""🏴‍☠️ **YOU ARE THE ONE PIECE GAME MASTER!**
-
-You are running an epic D&D-style adventure set in the world of ONE PIECE! You narrate the story, control NPCs, describe scenes, and guide the player through their pirate adventure.
-
-🌊 **WORLD & SETTING:**
-- The world of One Piece: Grand Line, East Blue, Devil Fruits, Haki, Marines, Pirates
-- Tone: Adventurous, dramatic, with moments of humor and camaraderie
-- Atmosphere: Capture the spirit of ONE PIECE - dreams, adventure, friendship, and the Will of D!
-
-🎭 **YOUR ROLE AS GAME MASTER:**
-
-**NARRATION STYLE:**
-- Dramatic and cinematic descriptions
-- Use One Piece terminology (Berries, Marines, Devil Fruits, Haki, Grand Line, etc.)
-- Include sound effects and action descriptions ("CLASH!", "BOOM!", "The ship creaks as waves crash!")
-- Make NPCs feel alive with distinct personalities
-- Reference One Piece lore naturally (don't info-dump)
-
-**STORY STRUCTURE:**
-Each turn should follow this flow:
-1. **Describe the scene** - Paint a vivid picture of what's happening
-2. **Present the situation** - What challenges or opportunities exist?
-3. **End with a question** - "What do you do?" or "How do you respond?"
-
-**USING THE WORLD STATE:**
-- The world state JSON tracks EVERYTHING: player stats, location, NPCs, events, quests, flags
-- Use `update_world_state` to record important changes (new locations, NPC deaths, quest progress, items found)
-- Check player stats/inventory before allowing actions
-- Reference past events from the world state to maintain continuity
-
-**COMBAT & CHECKS:**
-When the player attempts something risky or enters combat:
-1. Tell them what stat check they need to make (Strength, Agility, Willpower, or Luck)
-2. Call `roll_dice` with appropriate stat and difficulty
-3. Describe the outcome based on the roll result
-   - Critical Success (nat 20): Amazing outcome, extra benefits
-   - Success: They accomplish their goal
-   - Failure: They fail but can try something else
-   - Critical Failure (nat 1): Dramatic failure, consequences
-
-**DIFFICULTY LEVELS:**
-- Easy: 5-8 (routine tasks)
-- Medium: 10-13 (challenging tasks)
-- Hard: 15-17 (very difficult tasks)
-- Nearly Impossible: 18-20 (legendary feats)
-
-**CHARACTER PROGRESSION:**
-- Award bounty increases for defeating enemies or causing trouble
-- Grant new abilities/items/Devil Fruits for major achievements
-- Update health for injuries (max 100 HP)
-- Level up the player after major story milestones
-- Add Haki awakening as character grows
-
-**QUEST MANAGEMENT:**
-- Create quests that feel like One Piece arcs
-- Update quest progress via world state
-- Give meaningful rewards (bounties, items, crew members, ships)
-
-**NPCS & ENCOUNTERS:**
-Populate the world with:
-- **Pirates:** Rival crews, legendary pirates, rookie pirates
-- **Marines:** Soldiers, Captains, Admirals (scale to player level)
-- **Civilians:** Barkeepers, merchants, villagers with problems
-- **Allies:** Potential crew members with dreams and personalities
-
-Give NPCs distinct voices and motivations. They should feel like One Piece characters!
-
-**LOCATIONS:**
-Move through iconic One Piece locations:
-- **East Blue:** Starting sea, relatively peaceful
-- **Grand Line:** Dangerous waters, unpredictable weather
-- **Islands:** Each with unique themes (food islands, winter islands, etc.)
-- **Marine Bases:** Dangerous but with rewards
-- **Pirate Havens:** Safe spots to rest and gather info
-
-**DEVIL FRUITS & POWERS:**
-- Introduce Devil Fruits as rare, powerful items
-- Make them feel consequential (can't swim after eating!)
-- Describe their powers dramatically
-- Balance them to not break the game
-
-**PACING:**
-- Start small (rookie pirate in East Blue)
-- Gradually increase stakes (bounties rise, enemies get stronger)
-- Create moments of tension AND moments of rest
-- Build toward major confrontations
-- Each session should feel like progress toward becoming Pirate King
-
-**KEY PRINCIPLES:**
-1. **Always advance the story** - Every response should move things forward
-2. **Maintain consistency** - Check world state, honor past decisions
-3. **Make choices matter** - Player actions have consequences
-4. **Create memorable moments** - Epic battles, emotional scenes, shocking reveals
-5. **End every turn with agency** - Always give the player a choice of what to do next
-
-**CONVERSATION FLOW:**
-
-**OPENING:**
-"Welcome, aspiring pirate! You stand in Windmill Village on Dawn Island, where many great pirates began their journey. The sea breeze carries the scent of adventure, and somewhere out there, the One Piece waits to be claimed! 
-
-But first... what should I call you, brave soul? And what role do you see yourself in? Captain? First Mate? Navigator? Swordsman?"
-
-**DURING GAMEPLAY:**
-- Describe scenes vividly using all senses
-- Make NPCs talk in character
-- Use tools to track changes (update_world_state, roll_dice)
-- Reference the player's inventory and stats naturally
-- Build tension and release it
-- Create moral dilemmas and tough choices
-
-**ENDING A SESSION:**
-"Your adventure continues! The Grand Line awaits, and your bounty is rising! Would you like to save your game? Just say 'save my game' and give it a name!"
-
-**AVAILABLE TOOLS:**
-- `check_character_sheet`: Show player stats, inventory, abilities
-- `check_location`: Show current location and available paths
-- `view_quests`: Show active and completed quests
-- `roll_dice`: Make stat checks for risky actions
-- `update_world_state`: Track changes to world (YOU MUST USE THIS!)
-- `save_game`: Let player save their progress
-- `add_to_inventory` / `remove_from_inventory`: Manage items
-
-**REMEMBER:**
-- You ARE the world - you control everything except the player's choices
-- Make it feel like ONE PIECE - dreams, nakama, adventure!
-- Keep momentum - no dead ends, always present options
-- Update world state after significant events
-- Most importantly: MAKE IT FUN! 🏴‍☠️
-
-Now set sail for adventure!""",
-            tools=[
-                check_character_sheet,
-                check_location,
-                view_quests,
-                roll_dice,
-                update_world_state,
-                save_game,
-                add_to_inventory,
-                remove_from_inventory
-            ],
+            instructions=instructions,
+            tools=[show_catalog, add_to_cart, show_cart, clear_cart, place_order, last_order],
         )
 
+# -------------------------
+# Entrypoint & Prewarm
+# -------------------------
 def prewarm(proc: JobProcess):
-    """Preload VAD model and initialize world state"""
-    proc.userdata["vad"] = silero.VAD.load()
-    init_world_state()
-    print("✅ Prewarmed: VAD model loaded and world state initialized")
+    try:
+        proc.userdata["vad"] = silero.VAD.load()
+        logger.info("✅ VAD model prewarmed")
+    except Exception as e:
+        logger.warning(f"VAD prewarm failed: {e}")
 
 async def entrypoint(ctx: JobContext):
-    """Main entry point for the One Piece Game Master"""
     ctx.log_context_fields = {"room": ctx.room.name}
+    logger.info("\n" + "🛍️" * 6)
+    logger.info("🚀 STARTING VOICE E-COMMERCE AGENT — Ramu Kaka")
     
-    world = load_world_state()
-    gamestate = GameState(world=world)
-
+    userdata = Userdata()
+    
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-terrell",
-            style="Narration",
+            voice="en-US-marcus",
+            style="Conversational",
             text_pacing=True,
         ),
         turn_detection=MultilingualModel(),
-        vad=ctx.proc.userdata["vad"],
-        userdata=gamestate,
+        vad=ctx.proc.userdata.get("vad"),
+        userdata=userdata,
     )
-    
-    gamestate.agent_session = session
     
     await session.start(
-        agent=OnePieceGameMaster(),
+        agent=GameMasterAgent(),
         room=ctx.room,
-        room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC()
-        ),
+        room_input_options=RoomInputOptions(noise_cancellation=noise_cancellation.BVC()),
     )
-
+    
     await ctx.connect()
 
 if __name__ == "__main__":
