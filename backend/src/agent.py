@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import uuid
+import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Optional, Annotated
@@ -24,7 +24,7 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 # -------------------------
 # Logging
 # -------------------------
-logger = logging.getLogger("voice_game_master")
+logger = logging.getLogger("improv_battle_agent")
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -32,608 +32,397 @@ logger.addHandler(handler)
 load_dotenv(".env.local")
 
 # -------------------------
-# Simple Product Catalog 
+# Enhanced Improv Scenarios
 # -------------------------
-CATALOG = [
-    {
-        "id": "mug-001",
-        "name": "Stoneware Chai Mug",
-        "description": "Hand-glazed ceramic mug perfect for masala chai.",
-        "price": 299,
-        "currency": "INR",
-        "category": "mug",
-        "color": "blue",
-        "sizes": [],
-    },
-    {
-        "id": "tee-001",
-        "name": "Anhad Tee (Cotton)",
-        "description": "Comfort-fit cotton t-shirt with subtle logo.",
-        "price": 799,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "black",
-        "sizes": ["S", "M", "L", "XL"],
-    },
-    {
-        "id": "hoodie-001",
-        "name": "Cozy Hoodie",
-        "description": "Warm pullover hoodie, fleece-lined.",
-        "price": 1499,
-        "currency": "INR",
-        "category": "hoodie",
-        "color": "grey",
-        "sizes": ["M", "L", "XL"],
-    },
-    {
-        "id": "mug-002",
-        "name": "Insulated Travel Mug",
-        "description": "Keeps chai warm on your way to work.",
-        "price": 599,
-        "currency": "INR",
-        "category": "mug",
-        "color": "white",
-        "sizes": [],
-    },
-    {
-        "id": "hoodie-002",
-        "name": "Black Zip Hoodie",
-        "description": "Lightweight zip-up hoodie, black.",
-        "price": 1299,
-        "currency": "INR",
-        "category": "hoodie",
-        "color": "black",
-        "sizes": ["S", "M", "L"],
-    },
-    {
-        "id": "tee-002",
-        "name": "Casual Cotton Tee",
-        "description": "Everyday cotton t-shirt, breathable and soft.",
-        "price": 299,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "white",
-        "sizes": ["S", "M", "L", "XL"],
-    },
-    {
-        "id": "tee-003",
-        "name": "Graphic Tee",
-        "description": "Printed graphic t-shirt with vibrant design.",
-        "price": 499,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "navy",
-        "sizes": ["S", "M", "L", "XL"],
-    },
-    {
-        "id": "tee-004",
-        "name": "Premium Polo Tee",
-        "description": "Polo-style t-shirt with premium stitching.",
-        "price": 999,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "maroon",
-        "sizes": ["M", "L", "XL"],
-    },
-    {
-        "id": "tee-005",
-        "name": "Summer V-neck Tee",
-        "description": "Lightweight V-neck tee for hot days.",
-        "price": 350,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "sky",
-        "sizes": ["S", "M", "L"],
-    },
-    {
-        "id": "tee-006",
-        "name": "Henley Tee",
-        "description": "Smart casual henley style t-shirt.",
-        "price": 699,
-        "currency": "INR",
-        "category": "tshirt",
-        "color": "olive",
-        "sizes": ["M", "L", "XL"],
-    },
-    {
-        "id": "rain-001",
-        "name": "Light Raincoat",
-        "description": "Waterproof light raincoat, packable.",
-        "price": 1299,
-        "currency": "INR",
-        "category": "raincoat",
-        "color": "yellow",
-        "sizes": ["M", "L", "XL"],
-    },
-    {
-        "id": "rain-002",
-        "name": "Heavy Duty Raincoat",
-        "description": "Heavy-duty rainproof coat for monsoon.",
-        "price": 2499,
-        "currency": "INR",
-        "category": "raincoat",
-        "color": "navy",
-        "sizes": ["L", "XL"],
-    },
-    {
-        "id": "laptop-001",
-        "name": "Generic Laptop (50k)",
-        "description": "A reliable laptop suitable for everyday use.",
-        "price": 50000,
-        "currency": "INR",
-        "category": "laptop",
-        "color": "silver",
-        "sizes": [],
-    },
-    {
-        "id": "laptop-002",
-        "name": "Dell Inspiron (Budget)",
-        "description": "Compact Dell laptop for students and professionals.",
-        "price": 27800,
-        "currency": "INR",
-        "category": "laptop",
-        "color": "black",
-        "sizes": [],
-    },
-    {
-        "id": "laptop-003",
-        "name": "Lenovo ThinkPad",
-        "description": "Durable Lenovo laptop with strong performance.",
-        "price": 60000,
-        "currency": "INR",
-        "category": "laptop",
-        "color": "black",
-        "sizes": [],
-    },
-    {
-        "id": "laptop-004",
-        "name": "HP Pavilion",
-        "description": "High-performance HP laptop for creators.",
-        "price": 100000,
-        "currency": "INR",
-        "category": "laptop",
-        "color": "silver",
-        "sizes": [],
-    },
-    {
-        "id": "storage-001",
-        "name": "External Hard Disk 1TB",
-        "description": "Portable external hard disk for backups.",
-        "price": 50000,
-        "currency": "INR",
-        "category": "storage",
-        "color": "black",
-        "sizes": [],
-    },
-    {
-        "id": "phone-001",
-        "name": "Redmi Note (Entry)",
-        "description": "Affordable Redmi smartphone with solid features.",
-        "price": 12000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "blue",
-        "sizes": [],
-    },
-    {
-        "id": "phone-002",
-        "name": "Oppo A-Series",
-        "description": "Stylish Oppo phone with good camera.",
-        "price": 18000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "green",
-        "sizes": [],
-    },
-    {
-        "id": "phone-003",
-        "name": "Samsung M-Series",
-        "description": "Mid-range Samsung phone for everyday use.",
-        "price": 25000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "black",
-        "sizes": [],
-    },
-    {
-        "id": "phone-004",
-        "name": "iPhone (Standard)",
-        "description": "Apple iPhone model example (price varies by config).",
-        "price": 50000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "white",
-        "sizes": [],
-    },
-    {
-        "id": "phone-005",
-        "name": "Oppo Reno",
-        "description": "Higher-end Oppo phone with premium features.",
-        "price": 35000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "black",
-        "sizes": [],
-    },
-    {
-        "id": "phone-006",
-        "name": "Redmi Pro",
-        "description": "Redmi higher-tier phone with improved camera and battery.",
-        "price": 22000,
-        "currency": "INR",
-        "category": "mobile",
-        "color": "grey",
-        "sizes": [],
-    },
+SCENARIOS = [
+    "You are a barista who has to tell a customer that their latte is actually a portal to another dimension.",
+    "You are a time-travelling tour guide explaining modern smartphones to someone from the 1800s.",
+    "You are a restaurant waiter who must calmly tell a customer that their order has escaped the kitchen.",
+    "You are a customer trying to return an obviously cursed object to a very skeptical shop owner.",
+    "You are a taxi driver who just realized your passenger is a ghost from the 1920s.",
+    "You are a librarian trying to convince someone that the books are gossiping about them.",
+    "You are a tech support agent helping a medieval knight troubleshoot their dragon.",
+    "You are a yoga instructor whose class has been invaded by extremely competitive penguins.",
+    "You are a detective interrogating a houseplant as your only witness to a crime.",
+    "You are a chef on a cooking show, but all your ingredients have started talking back.",
+    "You are an astronaut who just discovered the ship's coffee machine has developed a personality.",
+    "You are a nervous wedding officiant who keeps getting the couple's names hilariously wrong.",
+    "You are a ghost trying to give a performance review to a living employee who can't see you.",
+    "You are a medieval king reacting to a food delivery app representative showing up at court.",
+    "You are a dentist trying to calm down a patient who insists they're a vampire and can't open their mouth.",
 ]
 
-ORDERS_FILE = "orders.json"
-
-# ensure orders file exists
-if not os.path.exists(ORDERS_FILE):
-    with open(ORDERS_FILE, "w") as f:
-        json.dump([], f)
-
 # -------------------------
-# Per-session Userdata
+# Per-session Game State
 # -------------------------
 @dataclass
-class Userdata:
+class ImprovGameState:
     player_name: Optional[str] = None
-    session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
-    cart: List[Dict] = field(default_factory=list)
-    orders: List[Dict] = field(default_factory=list)
-    history: List[Dict] = field(default_factory=list)
-
-# -------------------------
-# Merchant-layer helpers
-# -------------------------
-def _load_all_orders() -> List[Dict]:
-    try:
-        with open(ORDERS_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def _save_order(order: Dict):
-    orders = _load_all_orders()
-    orders.append(order)
-    with open(ORDERS_FILE, "w") as f:
-        json.dump(orders, f, indent=2)
-
-def list_products(filters: Optional[Dict] = None) -> List[Dict]:
-    """Filter products by category, max_price, color, size, or query."""
-    filters = filters or {}
-    results = []
-    query = filters.get("q")
-    category = filters.get("category")
-    max_price = filters.get("max_price") or filters.get("to") or filters.get("max")
-    min_price = filters.get("min_price") or filters.get("from") or filters.get("min")
-    color = filters.get("color")
-    size = filters.get("size")
+    current_round: int = 0
+    max_rounds: int = 4
+    phase: str = "idle"  # "idle" | "intro" | "awaiting_improv" | "reacting" | "done"
+    rounds: List[Dict] = field(default_factory=list)
+    used_scenario_indices: List[int] = field(default_factory=list)
+    session_started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
     
-    # normalize category synonyms
-    if category:
-        cat = category.lower()
-        if cat in ("phone", "phones", "mobile", "mobile phone", "mobiles"):
-            category = "mobile"
-        elif cat in ("tshirt", "t-shirts", "tees", "tee"):
-            category = "tshirt"
-        else:
-            category = cat
-    
-    for p in CATALOG:
-        ok = True
+    def pick_fresh_scenario(self) -> str:
+        """Pick a scenario that hasn't been used this session."""
+        available = [i for i in range(len(SCENARIOS)) if i not in self.used_scenario_indices]
         
-        # category matching
-        if category:
-            pcat = p.get("category", "").lower()
-            if pcat != category and category not in pcat and pcat not in category:
-                ok = False
+        # Reset if we've exhausted all scenarios
+        if not available:
+            self.used_scenario_indices = []
+            available = list(range(len(SCENARIOS)))
         
-        if max_price:
-            try:
-                if p.get("price", 0) > int(max_price):
-                    ok = False
-            except Exception:
-                pass
+        idx = random.choice(available)
+        self.used_scenario_indices.append(idx)
+        return SCENARIOS[idx]
+    
+    def generate_dynamic_reaction(self, performance_text: str) -> str:
+        """Generate varied, context-aware host reactions."""
+        perf_lower = performance_text.lower()
         
-        if min_price:
-            try:
-                if p.get("price", 0) < int(min_price):
-                    ok = False
-            except Exception:
-                pass
+        # Analyze performance characteristics
+        has_emotion = any(w in perf_lower for w in ['sad', 'angry', 'excited', 'scared', 'love', 'hate', 'cry'])
+        has_humor = any(w in perf_lower for w in ['funny', 'haha', 'lol', 'joke', 'laugh'])
+        is_short = len(performance_text.split()) < 15
+        has_character_voice = any(phrase in perf_lower for phrase in ['i am', "i'm a", 'as a', 'my name is'])
+        has_questions = '?' in performance_text
         
-        if color and p.get("color") and p.get("color") != color:
-            ok = False
+        # Choose reaction tone
+        reaction_types = []
         
-        if size and (not p.get("sizes") or size not in p.get("sizes")):
-            ok = False
+        if has_humor:
+            reaction_types.extend(['praise_humor', 'acknowledge_humor'])
+        if has_emotion:
+            reaction_types.extend(['praise_emotion', 'note_emotion'])
+        if is_short:
+            reaction_types.append('encourage_expansion')
+        if has_character_voice:
+            reaction_types.append('praise_commitment')
+        if has_questions:
+            reaction_types.append('note_technique')
         
-        if query:
-            q = query.lower()
-            if "phone" in q or "mobile" in q:
-                if p.get("category") != "mobile":
-                    ok = False
-            else:
-                if q not in p.get("name", "").lower() and q not in p.get("description", "").lower():
-                    ok = False
+        # Default options if nothing specific detected
+        if not reaction_types:
+            reaction_types = ['neutral_positive', 'constructive', 'playful_tease']
         
-        if ok:
-            results.append(p)
-    
-    return results
-
-def find_product_by_ref(ref_text: str, candidates: Optional[List[Dict]] = None) -> Optional[Dict]:
-    """Resolve references like 'second hoodie' or 'black hoodie' to a product dict."""
-    ref = (ref_text or "").lower().strip()
-    cand = candidates if candidates is not None else CATALOG
-    
-    # prefer mobiles if user explicitly mentions phone/mobile
-    wants_mobile = any(w in ref for w in ("phone", "phones", "mobile", "mobiles"))
-    filtered = cand
-    if wants_mobile:
-        filtered = [p for p in cand if p.get("category") == "mobile"]
-        if not filtered:
-            filtered = cand
-    
-    # ordinal handling
-    ordinals = {"first": 0, "second": 1, "third": 2, "fourth": 3}
-    for word, idx in ordinals.items():
-        if word in ref:
-            if idx < len(filtered):
-                return filtered[idx]
-    
-    # direct id match
-    for p in cand:
-        if p["id"].lower() == ref:
-            return p
-    
-    # color + category matching
-    for p in cand:
-        if p.get("color") and p["color"] in ref and p.get("category") and p["category"] in ref:
-            return p
-    
-    # name substring
-    for p in filtered:
-        name = p["name"].lower()
-        if all(tok in name for tok in ref.split() if len(tok) > 2):
-            return p
-    
-    for p in cand:
-        for tok in ref.split():
-            if len(tok) > 2 and tok in p["name"].lower():
-                return p
-    
-    # numeric index
-    for token in ref.split():
-        if token.isdigit():
-            idx = int(token) - 1
-            if 0 <= idx < len(filtered):
-                return filtered[idx]
-    
-    return None
-
-def create_order_object(line_items: List[Dict], currency: str = "INR") -> Dict:
-    """Create order from line items."""
-    items = []
-    total = 0
-    for li in line_items:
-        pid = li.get("product_id")
-        qty = int(li.get("quantity", 1))
-        prod = next((p for p in CATALOG if p["id"] == pid), None)
-        if not prod:
-            raise ValueError(f"Product {pid} not found")
-        line_total = prod["price"] * qty
-        total += line_total
-        items.append({
-            "product_id": pid,
-            "name": prod["name"],
-            "unit_price": prod["price"],
-            "quantity": qty,
-            "line_total": line_total,
-            "attrs": li.get("attrs", {}),
-        })
-    
-    order = {
-        "id": f"order-{str(uuid.uuid4())[:8]}",
-        "items": items,
-        "total": total,
-        "currency": currency,
-        "created_at": datetime.utcnow().isoformat() + "Z",
-    }
-    _save_order(order)
-    return order
-
-def get_most_recent_order() -> Optional[Dict]:
-    all_orders = _load_all_orders()
-    if not all_orders:
-        return None
-    return all_orders[-1]
+        reaction_type = random.choice(reaction_types)
+        
+        # Generate reaction based on type
+        reactions = {
+            'praise_humor': [
+                "Ha! That was genuinely funny. Great comedic timing.",
+                "Okay, you got me laughing with that one. Nice work!",
+                "Love the humor! You found the funny in the absurd."
+            ],
+            'acknowledge_humor': [
+                "I see what you were going for with the comedy. It landed in spots.",
+                "The humor was there - maybe lean into it even more next time."
+            ],
+            'praise_emotion': [
+                "Wow, real emotional depth there. I felt that.",
+                "You brought genuine emotion to that scene. Impressive.",
+                "That emotional color really elevated the performance."
+            ],
+            'note_emotion': [
+                "I liked the emotional choice. Could push it further though.",
+                "Good instinct on the emotion - don't be afraid to really go there."
+            ],
+            'encourage_expansion': [
+                "That was bold but brief. Try adding more detail next time.",
+                "Good start! Next round, really explore the scenario more.",
+                "You had the right idea - just needed a bit more meat on those bones."
+            ],
+            'praise_commitment': [
+                "Love the character commitment! You really became that role.",
+                "Full commitment to the character - that's what I want to see!",
+                "You sold that character completely. Excellent."
+            ],
+            'note_technique': [
+                "Interesting use of questions - that's an advanced technique.",
+                "I see you playing with different improv tools. Nice experimentation."
+            ],
+            'neutral_positive': [
+                "Solid work. You made clear choices and stuck with them.",
+                "That worked. Good commitment to the premise.",
+                "Nice. You understood the assignment and delivered."
+            ],
+            'constructive': [
+                "That was fine, but I think you could push the absurdity more.",
+                "You're on the right track - just needs bolder choices.",
+                "Decent foundation. Next time, really heighten the stakes."
+            ],
+            'playful_tease': [
+                "Okay, interesting interpretation! Not sure where you were going but points for confidence.",
+                "That was... certainly a choice! Hey, commitment counts.",
+                "Well, you definitely took a swing at it. Can't fault the effort."
+            ]
+        }
+        
+        return random.choice(reactions[reaction_type])
 
 # -------------------------
 # Agent Tools
 # -------------------------
 @function_tool
-async def show_catalog(
-    ctx: RunContext[Userdata],
-    q: Annotated[Optional[str], Field(default=None, description="Search query (optional)")] = None,
-    category: Annotated[Optional[str], Field(default=None, description="Category (optional)")] = None,
-    max_price: Annotated[Optional[int], Field(default=None, description="Maximum price (optional)")] = None,
-    color: Annotated[Optional[str], Field(default=None, description="Color (optional)")] = None,
+async def initialize_game(
+    ctx: RunContext[ImprovGameState],
+    player_name: Annotated[str, Field(description="The contestant's name")],
+    num_rounds: Annotated[int, Field(default=4, description="Number of improv rounds (3-5 recommended)")] = 4,
 ) -> str:
-    """Return a short spoken summary of matching products."""
-    # normalize category input
-    if category:
-        cat = category.lower()
-        if cat in ("phone", "phones", "mobile", "mobile phone", "mobiles"):
-            category = "mobile"
-        elif cat in ("tshirt", "t-shirts", "tees", "tee"):
-            category = "tshirt"
+    """Initialize the improv battle game with player info."""
+    state = ctx.userdata
     
-    # If query mentions phones, prefer category mobile
-    if not category and q:
-        if any(w in q.lower() for w in ("phone", "phones", "mobile", "mobiles")):
-            category = "mobile"
-        if any(w in q.lower() for w in ("tee", "tshirt", "t-shirts", "tees")):
-            category = "tshirt"
+    state.player_name = player_name.strip()
+    state.max_rounds = max(3, min(num_rounds, 6))  # Clamp between 3-6
+    state.current_round = 0
+    state.rounds = []
+    state.used_scenario_indices = []
+    state.phase = "intro"
     
-    filters = {"q": q, "category": category, "max_price": max_price, "color": color}
-    prods = list_products({k: v for k, v in filters.items() if v is not None})
+    welcome = (
+        f"Welcome to IMPROV BATTLE, {state.player_name}! "
+        f"I'm your host and we're doing {state.max_rounds} rapid-fire improv rounds tonight. "
+        f"Here's how it works: I give you a wild scenario, you improvise the scene, "
+        f"I react and critique, then we move on. "
+        f"When you're done with a scene, just say 'end scene' or pause naturally. "
+        f"Ready to jump in?"
+    )
     
-    if not prods:
-        return "Sorry — I couldn't find any items that match. Would you like to try another search?"
-    
-    # Summarize top 8
-    lines = [f"Here are the top {min(8, len(prods))} items I found at Voice shop:"]
-    for idx, p in enumerate(prods[:8], start=1):
-        size_info = f" (sizes: {', '.join(p['sizes'])})" if p.get('sizes') else ""
-        lines.append(f"{idx}. {p['name']} — {p['price']} {p['currency']} (id: {p['id']}){size_info}")
-    
-    lines.append("You can say: 'I want the second item in size M' or 'add mug-001 to my cart, quantity 2'.")
-    
-    if any(p.get('category') == 'mobile' for p in prods):
-        lines.append("To buy a phone say: 'Add phone-002 to my cart' or 'I want the second phone, quantity 1'.")
-    
-    return "\n".join(lines)
+    return welcome
 
 @function_tool
-async def add_to_cart(
-    ctx: RunContext[Userdata],
-    product_ref: Annotated[str, Field(description="Reference to product: id, name, or spoken ref")],
-    quantity: Annotated[int, Field(default=1, description="Quantity")] = 1,
-    size: Annotated[Optional[str], Field(default=None, description="Size (optional)")] = None,
+async def launch_next_round(
+    ctx: RunContext[ImprovGameState],
 ) -> str:
-    """Resolve a product and add to the session cart."""
-    userdata = ctx.userdata
-    prod = find_product_by_ref(product_ref, CATALOG)
+    """Present the next improv scenario to the contestant."""
+    state = ctx.userdata
     
-    if not prod:
-        return "I couldn't resolve which product you meant. Try using the item id or say 'show catalog' to hear options."
+    if state.phase == "done":
+        return "We've wrapped up all rounds! Say 'end show' for your final summary."
     
-    userdata.cart.append({
-        "product_id": prod["id"],
-        "quantity": int(quantity),
-        "attrs": {"size": size} if size else {},
+    if state.current_round >= state.max_rounds:
+        state.phase = "done"
+        return "That's all our rounds! Time for your closing notes."
+    
+    # Advance to next round
+    state.current_round += 1
+    scenario = state.pick_fresh_scenario()
+    
+    state.rounds.append({
+        "round_number": state.current_round,
+        "scenario": scenario,
+        "performance": "",
+        "reaction": "",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     })
     
-    userdata.history.append({
-        "time": datetime.utcnow().isoformat() + "Z",
-        "action": "add_to_cart",
-        "product_id": prod["id"],
-        "quantity": int(quantity),
-    })
+    state.phase = "awaiting_improv"
     
-    return f"Added {quantity} x {prod['name']} to your cart. What would you like to do next?"
+    announcement = (
+        f"Round {state.current_round} of {state.max_rounds}. "
+        f"Here's your scenario: {scenario} "
+        f"Aaaaaand... ACTION!"
+    )
+    
+    return announcement
 
 @function_tool
-async def show_cart(
-    ctx: RunContext[Userdata],
+async def capture_performance(
+    ctx: RunContext[ImprovGameState],
+    performance_summary: Annotated[str, Field(description="Brief summary or key moments from the player's improv")],
 ) -> str:
-    """Show current cart contents."""
-    userdata = ctx.userdata
-    if not userdata.cart:
-        return "Your cart is empty. You can say 'show catalog' to browse items."
+    """Record the player's performance and generate host reaction."""
+    state = ctx.userdata
     
-    lines = ["Items in your cart:"]
-    total = 0
-    for li in userdata.cart:
-        p = next((x for x in CATALOG if x["id"] == li["product_id"]), None)
-        if not p:
-            continue
-        line_total = p["price"] * li.get("quantity", 1)
-        total += line_total
-        sz = li.get("attrs", {}).get("size")
-        sz_text = f", size {sz}" if sz else ""
-        lines.append(f"- {p['name']} x {li['quantity']}{sz_text}: {line_total} INR")
+    if not state.rounds or state.current_round == 0:
+        return "No active round to record performance for. Start a new round first!"
     
-    lines.append(f"Cart total: {total} INR")
-    lines.append("Say 'place my order' to checkout or 'clear cart' to empty the cart.")
-    return "\n".join(lines)
+    # Get current round
+    current = state.rounds[state.current_round - 1]
+    current["performance"] = performance_summary
+    
+    # Generate dynamic reaction
+    reaction = state.generate_dynamic_reaction(performance_summary)
+    current["reaction"] = reaction
+    
+    state.phase = "reacting"
+    
+    # Check if this was the final round
+    if state.current_round >= state.max_rounds:
+        state.phase = "done"
+        return f"{reaction} And that wraps our {state.max_rounds} rounds! Ready for your final evaluation?"
+    
+    return f"{reaction} Ready for round {state.current_round + 1}?"
 
 @function_tool
-async def clear_cart(
-    ctx: RunContext[Userdata],
+async def deliver_final_summary(
+    ctx: RunContext[ImprovGameState],
 ) -> str:
-    """Clear the cart."""
-    userdata = ctx.userdata
-    userdata.cart = []
-    userdata.history.append({"time": datetime.utcnow().isoformat() + "Z", "action": "clear_cart"})
-    return "Your cart has been cleared. What would you like to do next?"
+    """Provide closing summary and player evaluation."""
+    state = ctx.userdata
+    
+    if not state.rounds:
+        return "We didn't complete any rounds. Thanks for stopping by Improv Battle!"
+    
+    completed = [r for r in state.rounds if r.get("performance")]
+    
+    # Analyze overall performance style
+    all_performances = " ".join([r["performance"] for r in completed]).lower()
+    
+    is_emotional = sum(1 for w in ['sad', 'angry', 'excited', 'love', 'cry', 'scared'] if w in all_performances) > 2
+    is_comedic = sum(1 for w in ['funny', 'haha', 'joke', 'laugh'] if w in all_performances) > 2
+    uses_questions = sum(1 for r in completed if '?' in r["performance"]) > len(completed) / 2
+    commits_to_character = sum(1 for r in completed if any(p in r["performance"].lower() for p in ['i am', "i'm", 'as a'])) > len(completed) / 2
+    
+    # Build personality profile
+    traits = []
+    if is_comedic:
+        traits.append("a natural comedian who finds humor in absurdity")
+    if is_emotional:
+        traits.append("an emotional performer who commits to feelings")
+    if uses_questions:
+        traits.append("a curious improviser who uses questions to explore")
+    if commits_to_character:
+        traits.append("a strong character actor who fully inhabits roles")
+    
+    if not traits:
+        traits.append("a bold experimenter who takes interesting risks")
+    
+    style_description = random.choice(traits)
+    
+    # Highlight a standout moment
+    standout = None
+    for r in completed:
+        if len(r["performance"].split()) > 20:  # Longer performances
+            standout = r
+            break
+    
+    if not standout and completed:
+        standout = completed[0]
+    
+    summary = (
+        f"Alright {state.player_name}, here's what I saw from you tonight. "
+        f"You completed {len(completed)} rounds, and you're {style_description}. "
+    )
+    
+    if standout:
+        summary += (
+            f"Your standout moment? Round {standout['round_number']} - {standout['scenario'][:60]}... "
+            f"You really brought something special there. "
+        )
+    
+    summary += (
+        f"Overall: keep making bold choices, stay committed to the moment, and don't second-guess yourself. "
+        f"Thanks for playing Improv Battle! Come back anytime."
+    )
+    
+    state.phase = "done"
+    return summary
 
 @function_tool
-async def place_order(
-    ctx: RunContext[Userdata],
-    confirm: Annotated[bool, Field(default=True, description="Confirm order placement")] = True,
+async def terminate_show_early(
+    ctx: RunContext[ImprovGameState],
 ) -> str:
-    """Create order from session cart and persist."""
-    userdata = ctx.userdata
-    if not userdata.cart:
-        return "Your cart is empty — nothing to place. Would you like to browse items?"
+    """End the show before completing all rounds."""
+    state = ctx.userdata
+    state.phase = "done"
     
-    line_items = []
-    for li in userdata.cart:
-        line_items.append({
-            "product_id": li["product_id"],
-            "quantity": li.get("quantity", 1),
-            "attrs": li.get("attrs", {}),
-        })
+    completed = len([r for r in state.rounds if r.get("performance")])
     
-    order = create_order_object(line_items)
-    userdata.orders.append(order)
-    userdata.history.append({
-        "time": datetime.utcnow().isoformat() + "Z",
-        "action": "place_order",
-        "order_id": order["id"]
-    })
-    
-    # clear cart after order
-    userdata.cart = []
-    
-    return f"Order placed. Order ID {order['id']}. Total {order['total']} {order['currency']}. What would you like to do next?"
+    return (
+        f"No problem, {state.player_name}! You completed {completed} scenes. "
+        f"That takes guts. Come back when you want to finish what you started. "
+        f"Thanks for playing Improv Battle!"
+    )
 
 @function_tool
-async def last_order(
-    ctx: RunContext[Userdata],
+async def check_game_status(
+    ctx: RunContext[ImprovGameState],
 ) -> str:
-    """Show the most recent order."""
-    ord = get_most_recent_order()
-    if not ord:
-        return "You have no past orders yet."
+    """Get current game progress and status."""
+    state = ctx.userdata
     
-    lines = [f"Most recent order: {ord['id']} — {ord['created_at']}"]
-    for it in ord['items']:
-        lines.append(f"- {it['name']} x {it['quantity']}: {it['line_total']} {ord['currency']}")
-    lines.append(f"Total: {ord['total']} {ord['currency']}")
-    return "\n".join(lines)
+    completed = len([r for r in state.rounds if r.get("performance")])
+    
+    return (
+        f"Player: {state.player_name or 'Not set'} | "
+        f"Phase: {state.phase} | "
+        f"Round: {state.current_round}/{state.max_rounds} | "
+        f"Completed scenes: {completed}"
+    )
 
 # -------------------------
-# The Agent (Ramu Kaka)
+# The Improv Battle Host Agent
 # -------------------------
-class GameMasterAgent(Agent):
+class ImprovBattleHost(Agent):
     def __init__(self):
         instructions = """
-You are 'luffy', the friendly shopkeeper and voice assistant for voice shop.
+You are the charismatic, quick-witted host of "IMPROV BATTLE" - a fast-paced voice improv game show.
 
-Universe: A small neighbourhood Indian shop selling mugs, hoodies, tees, laptops, mobiles, and more.
+YOUR PERSONALITY:
+- High-energy and engaging, like a game show host meets improv coach
+- Honest but never cruel - you give real feedback, not just cheerleading
+- Quick with reactions - surprise, delight, confusion, mild disappointment
+- Use natural, conversational language perfect for voice
+- Keep responses SHORT and PUNCHY for TTS clarity
 
-Tone: Warm, helpful, slightly jocular; keep sentences short for TTS clarity.
+GAME FLOW:
 
-Role: Help the customer browse the catalog, add items to cart, place orders, and review recent orders.
+1. WELCOME & SETUP:
+   - Greet warmly and ask for their name
+   - Call initialize_game with their name
+   - Explain rules briefly and build excitement
+   - Jump straight into Round 1
 
-Rules:
-- Use the provided tools to show the catalog, add items to cart, show the cart, place orders, show last order and clear the cart.
-- Keep continuity using the per-session userdata. Mention cart contents if relevant.
-- Drive short voice-first turns suitable for spoken delivery.
-- When presenting options, include product id and price (e.g. 'mug-001 — 299 INR').
-- For items with sizes (tshirts, hoodies), always ask for size before adding to cart.
-- Be conversational and natural - don't be robotic.
+2. EACH ROUND:
+   - Call launch_next_round to get and present the scenario
+   - Add energy: "Aaand... ACTION!" or "Lights up!"
+   - LET THEM PERFORM - don't interrupt
+   - Listen carefully to what they improvise
+
+3. AFTER EACH PERFORMANCE:
+   - Call capture_performance with a brief summary of what they did
+   - The tool will generate a reaction - deliver it with appropriate energy
+   - Vary your delivery: excited, thoughtful, playfully skeptical, impressed
+   - Keep it conversational: "Okay, that was wild!" or "Hmm, interesting choice there"
+   - Immediately transition to next round
+
+4. CLOSING:
+   - After final round, call deliver_final_summary
+   - Deliver the summary with warmth and genuine appreciation
+   - Mention specific moments that stood out
+   - End on an upbeat note
+
+CRITICAL RULES:
+- If they say "stop", "quit", "end show", or "I'm done", call terminate_show_early
+- Never break character as the host
+- Don't over-explain or lecture
+- React authentically - vary between impressed, constructive, and playfully critical
+- Keep all responses under 3-4 sentences unless it's the opening or closing
+- Use check_game_status only if you lose track of where you are
+
+TOOL USAGE:
+- initialize_game: Start the show with player name
+- launch_next_round: Present each new scenario
+- capture_performance: After they improvise, record and get reaction
+- deliver_final_summary: Final evaluation after all rounds
+- terminate_show_early: Graceful early exit
+- check_game_status: Check progress if needed
+
+Remember: This is ENTERTAINMENT. Make it fun, dynamic, and feel like a real TV show!
         """
         super().__init__(
             instructions=instructions,
-            tools=[show_catalog, add_to_cart, show_cart, clear_cart, place_order, last_order],
+            tools=[
+                initialize_game,
+                launch_next_round,
+                capture_performance,
+                deliver_final_summary,
+                terminate_show_early,
+                check_game_status,
+            ],
         )
 
 # -------------------------
@@ -642,16 +431,17 @@ Rules:
 def prewarm(proc: JobProcess):
     try:
         proc.userdata["vad"] = silero.VAD.load()
-        logger.info("✅ VAD model prewarmed")
+        logger.info("✅ VAD model prewarmed successfully")
     except Exception as e:
-        logger.warning(f"VAD prewarm failed: {e}")
+        logger.warning(f"⚠️  VAD prewarm failed: {e}")
 
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
-    logger.info("\n" + "🛍️" * 6)
-    logger.info("🚀 STARTING VOICE E-COMMERCE AGENT — Ramu Kaka")
+    logger.info("\n" + "🎭" * 20)
+    logger.info("🎬 IMPROV BATTLE - Voice Game Show Agent Starting...")
+    logger.info("🎭" * 20 + "\n")
     
-    userdata = Userdata()
+    game_state = ImprovGameState()
     
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
@@ -663,16 +453,17 @@ async def entrypoint(ctx: JobContext):
         ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata.get("vad"),
-        userdata=userdata,
+        userdata=game_state,
     )
     
     await session.start(
-        agent=GameMasterAgent(),
+        agent=ImprovBattleHost(),
         room=ctx.room,
         room_input_options=RoomInputOptions(noise_cancellation=noise_cancellation.BVC()),
     )
     
     await ctx.connect()
+    logger.info("🎙️  Improv Battle session connected and ready!")
 
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
